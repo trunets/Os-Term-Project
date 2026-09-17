@@ -1,3 +1,4 @@
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -6,317 +7,707 @@ import java.util.Set;
 /**
  * Test.java
  *
- * Tests the project components in sequence.
+ * Tests Job.java and WorkloadLoader.java together.
  *
- * Test flow:
+ * Test flow: 1. Load Jobs using WorkloadLoader. 2. Verify Job objects created
+ * by WorkloadLoader. 3. Verify Job fields. 4. Verify sequence numbers are
+ * unique. 5. Verify Jobs are sorted by arrivalMs. 6. Test Job lifecycle state
+ * changes. 7. Test Job timestamp methods. 8. Test Job derived metrics.
  *
- * WorkloadLoader
- *      ↓
- *    List<Job>
- *      ↓
- *     Job
- *      ↓
- * JobGenerator
- *
- * Each test uses the result from the previous test instead of creating
- * independent test data.
+ * All output uses ProjectLogger.
  */
 public class Test {
 
     /**
-     * Workload files provided by the project.
-     */
-    private static final String BASE_PATH = "csv/";
-
-    private static final String[] FILES = {
-        "jobs_db.csv",
-        "jobs_printer.csv",
-        "jobs_same_priority.csv",
-        "jobs_single.csv",
-        "jobs_standard.csv"
-    };
-
-    /**
-     * Test WorkloadLoader.
-     *
-     * This is the first stage of the test chain.
-     *
-     * It loads the CSV files and returns the actual List<Job> that will
-     * be passed to the next test.
-     *
-     * @return loaded Jobs
-     */
-    public static List<Job> TestWorkloadLoader() {
-
-        System.out.println();
-        System.out.println("========================================");
-        System.out.println("TestWorkloadLoader");
-        System.out.println("========================================");
-
-        List<Job> allJobs = new java.util.ArrayList<>();
-
-        for (String fileName : FILES) {
-
-            String csvPath = BASE_PATH + fileName;
-
-            System.out.println();
-            System.out.println("Testing: " + fileName);
-
-            try {
-
-                // Load Jobs directly from WorkloadLoader.
-                List<Job> jobs = WorkloadLoader.load(csvPath);
-
-                System.out.println("Load: PASS");
-                System.out.println("Number of jobs: " + jobs.size());
-
-                // Check arrivalMs ordering.
-                boolean sorted = true;
-
-                for (int i = 1; i < jobs.size(); i++) {
-
-                    if (jobs.get(i).getArrivalMs()
-                            < jobs.get(i - 1).getArrivalMs()) {
-
-                        sorted = false;
-                        break;
-                    }
-                }
-
-                System.out.println(
-                        "Arrival time sorted: "
-                        + (sorted ? "PASS" : "FAIL")
-                );
-
-                if (!sorted) {
-                    throw new AssertionError(
-                            "Jobs are not sorted by arrivalMs"
-                    );
-                }
-
-                // Check sequenceNumber uniqueness.
-                Set<Long> sequenceNumbers = new HashSet<>();
-
-                boolean uniqueSequence = true;
-
-                for (Job job : jobs) {
-
-                    if (!sequenceNumbers.add(
-                            job.getSequenceNumber())) {
-
-                        uniqueSequence = false;
-                        break;
-                    }
-                }
-
-                System.out.println(
-                        "Sequence numbers unique: "
-                        + (uniqueSequence ? "PASS" : "FAIL")
-                );
-
-                if (!uniqueSequence) {
-                    throw new AssertionError(
-                            "Duplicate sequenceNumber found"
-                    );
-                }
-
-                // Pass the exact same Job objects to the next stage.
-                allJobs.addAll(jobs);
-
-                // Print loaded Jobs.
-                for (Job job : jobs) {
-                    System.out.println("  " + job);
-                }
-
-            } catch (IOException e) {
-
-                System.out.println("Load: FAIL");
-                System.out.println("Error: " + e.getMessage());
-
-                throw new RuntimeException(
-                        "WorkloadLoader test failed for "
-                        + fileName,
-                        e
-                );
-
-            } catch (Exception e) {
-
-                System.out.println("Load: ERROR");
-                System.out.println(
-                        e.getClass().getSimpleName()
-                        + ": "
-                        + e.getMessage()
-                );
-
-                throw e;
-            }
-        }
-
-        System.out.println();
-        System.out.println(
-                "Total Jobs loaded: " + allJobs.size()
-        );
-
-        return allJobs;
-    }
-
-    /**
-     * Test Job.
-     *
-     * This test DOES NOT load CSV files itself.
-     *
-     * It receives the List<Job> produced by TestWorkloadLoader().
-     * Therefore both tests operate on the same Job objects.
-     *
-     * @param jobs Jobs returned from TestWorkloadLoader()
-     * @return the same List<Job> after Job tests
-     */
-    public static List<Job> TestJob(List<Job> jobs) {
-
-        System.out.println();
-        System.out.println("========================================");
-        System.out.println("TestJob");
-        System.out.println("========================================");
-
-        if (jobs == null) {
-            throw new IllegalArgumentException(
-                    "jobs cannot be null"
-            );
-        }
-
-        if (jobs.isEmpty()) {
-            throw new AssertionError(
-                    "No Jobs were provided by WorkloadLoader"
-            );
-        }
-
-        for (Job job : jobs) {
-
-            System.out.println();
-            System.out.println("Testing Job: " + job.getId());
-
-            // Verify immutable data exists.
-            if (job.getId() == null
-                    || job.getId().isEmpty()) {
-
-                throw new AssertionError(
-                        "Job ID is invalid"
-                );
-            }
-
-            // A newly loaded Job must start as ARRIVED.
-            if (job.getState() != Job.State.ARRIVED) {
-
-                throw new AssertionError(
-                        "Initial Job state must be ARRIVED"
-                );
-            }
-
-            // Verify the Job lifecycle fields using the same Job object.
-            job.setActualArrivalTime(job.getArrivalMs());
-
-            job.setStartTime(
-                    job.getActualArrivalTime() + 10
-            );
-
-            job.setResourceWaitStartTime(
-                    job.getStartTime()
-            );
-
-            job.setResourceAcquireTime(
-                    job.getStartTime() + 5
-            );
-
-            job.setCompletionTime(
-                    job.getStartTime() + job.getWorkMs()
-            );
-
-            // Change state to READY.
-            job.setState(Job.State.READY);
-
-            if (job.getState() != Job.State.READY) {
-
-                throw new AssertionError(
-                        "Job state change failed"
-                );
-            }
-
-            // Verify waiting time.
-            long expectedWaitingTime =
-                    job.getStartTime()
-                    - job.getActualArrivalTime();
-
-            if (job.waitingTime() != expectedWaitingTime) {
-
-                throw new AssertionError(
-                        "Waiting time calculation failed"
-                );
-            }
-
-            // Verify turnaround time.
-            long expectedTurnaroundTime =
-                    job.getCompletionTime()
-                    - job.getActualArrivalTime();
-
-            if (job.turnaroundTime()
-                    != expectedTurnaroundTime) {
-
-                throw new AssertionError(
-                        "Turnaround time calculation failed"
-                );
-            }
-
-            // Verify resource wait time.
-            long expectedResourceWaitTime = 0;
-
-            if (job.getResource()
-                    != Job.ResourceType.NONE) {
-
-                expectedResourceWaitTime =
-                        job.getResourceAcquireTime()
-                        - job.getResourceWaitStartTime();
-            }
-
-            if (job.resourceWaitTime()
-                    != expectedResourceWaitTime) {
-
-                throw new AssertionError(
-                        "Resource wait time calculation failed"
-                );
-            }
-
-            System.out.println("Job: PASS");
-        }
-
-        System.out.println();
-        System.out.println("TestJob: PASS");
-
-        // Return the SAME Job objects to the next test.
-        return jobs;
-    }
-
-    /**
-     * Main test chain.
-     *
-     * Each stage receives the result of the previous stage.
+     * Main test entry point.
      */
     public static void main(String[] args) {
 
-        // Stage 1:
-        // CSV → WorkloadLoader → List<Job>
-        List<Job> jobs = TestWorkloadLoader();
+        // Record the starting time used by ProjectLogger.
+        long simulationStart = System.currentTimeMillis();
 
-        // Stage 2:
-        // List<Job> → Job tests → same List<Job>
-        jobs = TestJob(jobs);
+        // Create the project logger.
+        ProjectLogger logger
+                = new ProjectLogger(simulationStart);
 
-        // Stage 3 will be added after JobGenerator.java is implemented.
-        //
-        // jobs = TestJobGenerator(jobs);
+        // Get the current thread name.
+        String threadName
+                = Thread.currentThread().getName();
 
-        System.out.println();
-        System.out.println("========================================");
-        System.out.println("All available tests completed.");
-        System.out.println("========================================");
+        logger.log(
+                threadName,
+                "========================================"
+        );
+
+        logger.log(
+                threadName,
+                "        OS TERM PROJECT TEST"
+        );
+
+        logger.log(
+                threadName,
+                "========================================"
+        );
+
+        // --------------------------------------------------------
+        // Test Job and WorkloadLoader together.
+        // --------------------------------------------------------
+        testWorkload(
+                logger,
+                threadName,
+                "csv/jobs_db.csv"
+        );
+
+        testWorkload(
+                logger,
+                threadName,
+                "csv/jobs_printer.csv"
+        );
+
+        testWorkload(
+                logger,
+                threadName,
+                "csv/jobs_same_priority.csv"
+        );
+
+        testWorkload(
+                logger,
+                threadName,
+                "csv/jobs_single.csv"
+        );
+
+        testWorkload(
+                logger,
+                threadName,
+                "csv/jobs_standard.csv"
+        );
+
+        logger.log(
+                threadName,
+                "========================================"
+        );
+
+        logger.log(
+                threadName,
+                "           ALL TESTS FINISHED"
+        );
+
+        logger.log(
+                threadName,
+                "========================================"
+        );
+    }
+
+    /**
+     * Tests WorkloadLoader and the Job objects it creates.
+     *
+     * The Jobs are obtained directly from WorkloadLoader, so Test does not
+     * manually construct Job objects.
+     */
+    private static void testWorkload(
+            ProjectLogger logger,
+            String threadName,
+            String csvPath) {
+
+        logger.log(
+                threadName,
+                ""
+        );
+
+        logger.log(
+                threadName,
+                "========================================"
+        );
+
+        logger.log(
+                threadName,
+                "Testing: " + csvPath
+        );
+
+        logger.log(
+                threadName,
+                "========================================"
+        );
+
+        try {
+
+            // ----------------------------------------------------
+            // Load Jobs using WorkloadLoader.
+            // WorkloadLoader is responsible for constructing Job.
+            // ----------------------------------------------------
+            List<Job> jobs
+                    = WorkloadLoader.load(csvPath);
+
+            logger.log(
+                    threadName,
+                    "PASS: WorkloadLoader loaded CSV"
+            );
+
+            logger.log(
+                    threadName,
+                    "Number of Jobs = " + jobs.size()
+            );
+
+            // ----------------------------------------------------
+            // Test that at least one Job exists.
+            // ----------------------------------------------------
+            if (jobs.isEmpty()) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Workload contains no Jobs"
+                );
+
+                return;
+            }
+
+            logger.log(
+                    threadName,
+                    "PASS: Job objects exist"
+            );
+
+            // ----------------------------------------------------
+            // Test Job data.
+            // ----------------------------------------------------
+            testJobData(
+                    logger,
+                    threadName,
+                    jobs
+            );
+
+            // ----------------------------------------------------
+            // Test sequence number uniqueness.
+            // ----------------------------------------------------
+            testSequenceNumbers(
+                    logger,
+                    threadName,
+                    jobs
+            );
+
+            // ----------------------------------------------------
+            // Test arrival time sorting.
+            // ----------------------------------------------------
+            testArrivalOrder(
+                    logger,
+                    threadName,
+                    jobs
+            );
+
+            // ----------------------------------------------------
+            // Test Job lifecycle and timestamps.
+            // ----------------------------------------------------
+            testJobLifecycle(
+                    logger,
+                    threadName,
+                    jobs.get(0),
+                    simulationTime(logger)
+            );
+
+            // ----------------------------------------------------
+            // Print all Jobs loaded from the CSV.
+            // ----------------------------------------------------
+            printJobs(
+                    logger,
+                    threadName,
+                    jobs
+            );
+
+        } catch (IOException e) {
+
+            // Log the actual error message.
+            logger.log(
+                    threadName,
+                    "FAIL: " + csvPath + " -> " + e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Tests the immutable data stored inside Job.
+     */
+    private static void testJobData(
+            ProjectLogger logger,
+            String threadName,
+            List<Job> jobs) {
+
+        logger.log(
+                threadName,
+                "--- Testing Job Data ---"
+        );
+
+        boolean valid = true;
+
+        for (Job job : jobs) {
+
+            // ID must exist.
+            if (job.getId() == null
+                    || job.getId().isEmpty()) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Job has invalid ID"
+                );
+
+                valid = false;
+            }
+
+            // Arrival time cannot be negative.
+            if (job.getArrivalMs() < 0) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: "
+                        + job.getId()
+                        + " has negative arrivalMs"
+                );
+
+                valid = false;
+            }
+
+            // Work time cannot be negative.
+            if (job.getWorkMs() < 0) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: "
+                        + job.getId()
+                        + " has negative workMs"
+                );
+
+                valid = false;
+            }
+
+            // Resource time cannot be negative.
+            if (job.getResourceMs() < 0) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: "
+                        + job.getId()
+                        + " has negative resourceMs"
+                );
+
+                valid = false;
+            }
+
+            // Resource must not be null.
+            if (job.getResource() == null) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: "
+                        + job.getId()
+                        + " has null resource"
+                );
+
+                valid = false;
+            }
+        }
+
+        if (valid) {
+
+            logger.log(
+                    threadName,
+                    "PASS: All Job data is valid"
+            );
+        }
+    }
+
+    /**
+     * Tests that every Job has a unique sequence number.
+     */
+    private static void testSequenceNumbers(
+            ProjectLogger logger,
+            String threadName,
+            List<Job> jobs) {
+
+        logger.log(
+                threadName,
+                "--- Testing Sequence Numbers ---"
+        );
+
+        Set<Long> sequenceNumbers
+                = new HashSet<>();
+
+        boolean unique = true;
+
+        for (Job job : jobs) {
+
+            // add() returns false if the value already exists.
+            if (!sequenceNumbers.add(
+                    job.getSequenceNumber())) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Duplicate sequenceNumber = "
+                        + job.getSequenceNumber()
+                );
+
+                unique = false;
+            }
+        }
+
+        if (unique) {
+
+            logger.log(
+                    threadName,
+                    "PASS: All sequenceNumbers are unique"
+            );
+        }
+    }
+
+    /**
+     * Tests that WorkloadLoader sorted Jobs by arrivalMs.
+     */
+    private static void testArrivalOrder(
+            ProjectLogger logger,
+            String threadName,
+            List<Job> jobs) {
+
+        logger.log(
+                threadName,
+                "--- Testing Arrival Order ---"
+        );
+
+        boolean sorted = true;
+
+        for (int i = 1; i < jobs.size(); i++) {
+
+            Job previous = jobs.get(i - 1);
+            Job current = jobs.get(i);
+
+            // Compare adjacent Jobs by arrivalMs.
+            if (previous.getArrivalMs()
+                    > current.getArrivalMs()) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Jobs are not sorted at index "
+                        + i
+                );
+
+                sorted = false;
+
+                break;
+            }
+
+            // If arrivalMs is equal, sequenceNumber must preserve
+            // the original CSV order.
+            if (previous.getArrivalMs()
+                    == current.getArrivalMs()
+                    && previous.getSequenceNumber()
+                    > current.getSequenceNumber()) {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Invalid sequence order at index "
+                        + i
+                );
+
+                sorted = false;
+
+                break;
+            }
+        }
+
+        if (sorted) {
+
+            logger.log(
+                    threadName,
+                    "PASS: Jobs sorted by arrivalMs"
+            );
+        }
+    }
+
+    /**
+     * Tests the mutable lifecycle fields of Job.
+     *
+     * This uses the actual Job object created by WorkloadLoader.
+     */
+    private static void testJobLifecycle(
+            ProjectLogger logger,
+            String threadName,
+            Job job,
+            long simulationStart) {
+
+        logger.log(
+                threadName,
+                "--- Testing Job Lifecycle ---"
+        );
+
+        // --------------------------------------------------------
+        // Initial state.
+        // --------------------------------------------------------
+        if (job.getState() == Job.State.ARRIVED) {
+
+            logger.log(
+                    threadName,
+                    "PASS: Initial state = ARRIVED"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: Initial state = "
+                    + job.getState()
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test actual arrival time.
+        // --------------------------------------------------------
+        job.setActualArrivalTime(10);
+
+        if (job.getActualArrivalTime() == 10) {
+
+            logger.log(
+                    threadName,
+                    "PASS: actualArrivalTime setter/getter"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: actualArrivalTime"
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test state change to READY.
+        // --------------------------------------------------------
+        job.setState(Job.State.READY);
+
+        if (job.getState() == Job.State.READY) {
+
+            logger.log(
+                    threadName,
+                    "PASS: State changed to READY"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: Could not change state to READY"
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test state change to RUNNING.
+        // --------------------------------------------------------
+        job.setState(Job.State.RUNNING);
+
+        if (job.getState() == Job.State.RUNNING) {
+
+            logger.log(
+                    threadName,
+                    "PASS: State changed to RUNNING"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: Could not change state to RUNNING"
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test start time.
+        // --------------------------------------------------------
+        job.setStartTime(20);
+
+        if (job.getStartTime() == 20) {
+
+            logger.log(
+                    threadName,
+                    "PASS: startTime setter/getter"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: startTime"
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test resource timestamps if a resource is required.
+        // --------------------------------------------------------
+        if (job.getResource()
+                != Job.ResourceType.NONE) {
+
+            job.setState(
+                    Job.State.WAITING_RESOURCE
+            );
+
+            job.setResourceWaitStartTime(30);
+
+            job.setResourceAcquireTime(50);
+
+            if (job.getResourceWaitStartTime() == 30
+                    && job.getResourceAcquireTime() == 50) {
+
+                logger.log(
+                        threadName,
+                        "PASS: Resource timestamps"
+                );
+
+            } else {
+
+                logger.log(
+                        threadName,
+                        "FAIL: Resource timestamps"
+                );
+            }
+
+            // Test resource waiting time.
+            long resourceWait
+                    = job.resourceWaitTime();
+
+            if (resourceWait == 20) {
+
+                logger.log(
+                        threadName,
+                        "PASS: resourceWaitTime() = 20 ms"
+                );
+
+            } else {
+
+                logger.log(
+                        threadName,
+                        "FAIL: resourceWaitTime() = "
+                        + resourceWait
+                );
+            }
+        }
+
+        // --------------------------------------------------------
+        // Test completion time.
+        // --------------------------------------------------------
+        job.setCompletionTime(120);
+
+        // Test waitingTime().
+        long waitingTime
+                = job.waitingTime();
+
+        if (waitingTime == 10) {
+
+            logger.log(
+                    threadName,
+                    "PASS: waitingTime() = 10 ms"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: waitingTime() = "
+                    + waitingTime
+            );
+        }
+
+        // Test turnaroundTime().
+        long turnaroundTime
+                = job.turnaroundTime();
+
+        if (turnaroundTime == 110) {
+
+            logger.log(
+                    threadName,
+                    "PASS: turnaroundTime() = 110 ms"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: turnaroundTime() = "
+                    + turnaroundTime
+            );
+        }
+
+        // --------------------------------------------------------
+        // Test final state.
+        // --------------------------------------------------------
+        job.setState(Job.State.COMPLETED);
+
+        if (job.getState() == Job.State.COMPLETED) {
+
+            logger.log(
+                    threadName,
+                    "PASS: State changed to COMPLETED"
+            );
+
+        } else {
+
+            logger.log(
+                    threadName,
+                    "FAIL: Could not change state to COMPLETED"
+            );
+        }
+
+        logger.log(
+                threadName,
+                "Job lifecycle test completed for "
+                + job.getId()
+        );
+    }
+
+    /**
+     * Prints every Job loaded by WorkloadLoader.
+     *
+     * Job.toString() currently returns only the Job ID, so the important fields
+     * are printed separately.
+     */
+    private static void printJobs(
+            ProjectLogger logger,
+            String threadName,
+            List<Job> jobs) {
+
+        logger.log(
+                threadName,
+                "--- Loaded Jobs ---"
+        );
+
+        for (Job job : jobs) {
+
+            logger.log(
+                    threadName,
+                    job.getId()
+                    + " | arrivalMs="
+                    + job.getArrivalMs()
+                    + " | priority="
+                    + job.getPriority()
+                    + " | workMs="
+                    + job.getWorkMs()
+                    + " | resource="
+                    + job.getResource()
+                    + " | resourceMs="
+                    + job.getResourceMs()
+                    + " | sequence="
+                    + job.getSequenceNumber()
+            );
+        }
+
+        logger.log(
+                threadName,
+                "--- End Jobs ---"
+        );
+    }
+
+    /**
+     * Returns the current system time.
+     *
+     * This helper keeps the test code explicit about using milliseconds for
+     * simulation-related timestamps.
+     */
+    private static long simulationTime(
+            ProjectLogger logger) {
+
+        return System.currentTimeMillis();
     }
 }
