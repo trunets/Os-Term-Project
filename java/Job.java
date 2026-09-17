@@ -1,51 +1,133 @@
 /**
  * Job.java
  *
- * Immutable job data (id, arrivalMs, priority, workMs, resource, resourceMs)
- * plus mutable lifecycle fields (state + timestamps).
+ * Immutable job data:
+ * id, arrivalMs, priority, workMs, resource, resourceMs
  *
- * Concurrency note: the mutable fields below are written by the single
- * Worker thread that owns this Job at any given time, and read by the
- * Monitor thread for reporting. They are declared volatile so the Monitor
- * always sees the latest value without needing a lock (single-writer /
- * multi-reader pattern) — no other synchronization is required for them.
+ * Mutable lifecycle data:
+ * state and timestamps.
+ *
+ * Concurrency note:
+ * The mutable fields are written by the Worker thread that currently owns
+ * the Job and read by the Monitor thread for reporting.
+ *
+ * volatile guarantees visibility and ordering between threads, so the
+ * Monitor can observe the latest lifecycle values without explicit locking.
  */
 public class Job {
 
-    /** Project-level lifecycle states (do NOT map 1:1 to Thread.State). */
+    /**
+     * Project-level lifecycle states.
+     *
+     * These states represent the simulation state of a Job and do not map
+     * directly to java.lang.Thread.State.
+     */
     public enum State {
-        ARRIVED, READY, RUNNING, WAITING_RESOURCE, COMPLETED
+        ARRIVED,
+        READY,
+        RUNNING,
+        WAITING_RESOURCE,
+        COMPLETED
     }
 
-    /** A Job uses at most one shared resource. */
+    /**
+     * A Job can use at most one shared resource.
+     */
     public enum ResourceType {
-        NONE, PRINTER, DATABASE
+        NONE,
+        PRINTER,
+        DATABASE
     }
 
-    // ---- Immutable job data (from workload file) ----
+    // ============================================================
+    // Immutable job data
+    // ============================================================
+
+    /** Job identifier from the workload file. */
     private final String id;
-    private final long arrivalMs;      // scheduled arrival offset from simulationStart
-    private final int priority;        // 1 = highest priority
+
+    /** Scheduled arrival offset from simulationStart in milliseconds. */
+    private final long arrivalMs;
+
+    /** Job priority. 1 means the highest priority. */
+    private final int priority;
+
+    /** Amount of CPU/work time required by this Job in milliseconds. */
     private final long workMs;
+
+    /** Shared resource required by this Job. */
     private final ResourceType resource;
+
+    /** Amount of time the Job needs the resource in milliseconds. */
     private final long resourceMs;
 
-    // Tie-break helper: a monotonically increasing sequence number assigned
-    // once (e.g. when the Job is loaded or first arrives). Using this for
-    // tie-breaks keeps ordering deterministic and independent of which
-    // Thread happens to reach a queue first.
+    /**
+     * Monotonically increasing sequence number used for deterministic
+     * tie-breaking when two Jobs have the same scheduling attributes.
+     */
     private final long sequenceNumber;
 
-    // ---- Mutable lifecycle data (single-writer: whichever Worker owns this Job) ----
-    private volatile State state = State.ARRIVED;
-    private volatile long actualArrivalTime;      // ms since simulationStart, set by JobGenerator
-    private volatile long startTime;               // set by Worker at step 1
-    private volatile long resourceWaitStartTime;   // set by Worker before acquire()
-    private volatile long resourceAcquireTime;     // set by Worker after acquire()
-    private volatile long completionTime;          // set by Worker at step 6
+    // ============================================================
+    // Mutable lifecycle data
+    // ============================================================
 
-    public Job(String id, long arrivalMs, int priority, long workMs,
-               ResourceType resource, long resourceMs, long sequenceNumber) {
+    /**
+     * Current lifecycle state of this Job.
+     *
+     * ARRIVED is the initial state.
+     */
+    private volatile State state = State.ARRIVED;
+
+    /**
+     * Actual time when the Job was generated/arrived,
+     * measured as milliseconds since simulationStart.
+     */
+    private volatile long actualArrivalTime;
+
+    /**
+     * Time when the Worker started processing the Job.
+     */
+    private volatile long startTime;
+
+    /**
+     * Time when the Job started waiting for its shared resource.
+     */
+    private volatile long resourceWaitStartTime;
+
+    /**
+     * Time when the Job successfully acquired its shared resource.
+     */
+    private volatile long resourceAcquireTime;
+
+    /**
+     * Time when the Job completed.
+     */
+    private volatile long completionTime;
+
+    // ============================================================
+    // Constructor
+    // ============================================================
+
+    /**
+     * Creates a Job using data loaded from the workload file.
+     *
+     * @param id              unique Job identifier
+     * @param arrivalMs       scheduled arrival offset in milliseconds
+     * @param priority        Job priority; 1 is highest
+     * @param workMs          required work time in milliseconds
+     * @param resource        shared resource required by the Job
+     * @param resourceMs      resource usage time in milliseconds
+     * @param sequenceNumber  deterministic tie-break sequence number
+     */
+    public Job(
+            String id,
+            long arrivalMs,
+            int priority,
+            long workMs,
+            ResourceType resource,
+            long resourceMs,
+            long sequenceNumber) {
+
         this.id = id;
         this.arrivalMs = arrivalMs;
         this.priority = priority;
@@ -55,41 +137,142 @@ public class Job {
         this.sequenceNumber = sequenceNumber;
     }
 
-    // ---- Getters for immutable fields ----
-    public String getId() { return id; }
-    public long getArrivalMs() { return arrivalMs; }
-    public int getPriority() { return priority; }
-    public long getWorkMs() { return workMs; }
-    public ResourceType getResource() { return resource; }
-    public long getResourceMs() { return resourceMs; }
-    public long getSequenceNumber() { return sequenceNumber; }
+    // ============================================================
+    // Getters for immutable job data
+    // ============================================================
 
-    // ---- Getters/setters for lifecycle fields ----
-    public State getState() { return state; }
-    public void setState(State state) { this.state = state; }
+    public String getId() {
+        return id;
+    }
 
-    public long getActualArrivalTime() { return actualArrivalTime; }
-    public void setActualArrivalTime(long t) { this.actualArrivalTime = t; }
+    public long getArrivalMs() {
+        return arrivalMs;
+    }
 
-    public long getStartTime() { return startTime; }
-    public void setStartTime(long t) { this.startTime = t; }
+    public int getPriority() {
+        return priority;
+    }
 
-    public long getResourceWaitStartTime() { return resourceWaitStartTime; }
-    public void setResourceWaitStartTime(long t) { this.resourceWaitStartTime = t; }
+    public long getWorkMs() {
+        return workMs;
+    }
 
-    public long getResourceAcquireTime() { return resourceAcquireTime; }
-    public void setResourceAcquireTime(long t) { this.resourceAcquireTime = t; }
+    public ResourceType getResource() {
+        return resource;
+    }
 
-    public long getCompletionTime() { return completionTime; }
-    public void setCompletionTime(long t) { this.completionTime = t; }
+    public long getResourceMs() {
+        return resourceMs;
+    }
 
-    // TODO: derived metrics per spec section 10 — implement once all
-    // timestamps above are being set correctly by Worker.processJob().
-    // public long waitingTime()       { return startTime - actualArrivalTime; }
-    // public long turnaroundTime()    { return completionTime - actualArrivalTime; }
-    // public long resourceWaitTime()  { return resource == ResourceType.NONE
-    //                                        ? 0 : resourceAcquireTime - resourceWaitStartTime; }
+    public long getSequenceNumber() {
+        return sequenceNumber;
+    }
 
+    // ============================================================
+    // Lifecycle state
+    // ============================================================
+
+    public State getState() {
+        return state;
+    }
+
+    public void setState(State state) {
+        this.state = state;
+    }
+
+    // ============================================================
+    // Lifecycle timestamps
+    // ============================================================
+
+    public long getActualArrivalTime() {
+        return actualArrivalTime;
+    }
+
+    public void setActualArrivalTime(long actualArrivalTime) {
+        this.actualArrivalTime = actualArrivalTime;
+    }
+
+    public long getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(long startTime) {
+        this.startTime = startTime;
+    }
+
+    public long getResourceWaitStartTime() {
+        return resourceWaitStartTime;
+    }
+
+    public void setResourceWaitStartTime(long resourceWaitStartTime) {
+        this.resourceWaitStartTime = resourceWaitStartTime;
+    }
+
+    public long getResourceAcquireTime() {
+        return resourceAcquireTime;
+    }
+
+    public void setResourceAcquireTime(long resourceAcquireTime) {
+        this.resourceAcquireTime = resourceAcquireTime;
+    }
+
+    public long getCompletionTime() {
+        return completionTime;
+    }
+
+    public void setCompletionTime(long completionTime) {
+        this.completionTime = completionTime;
+    }
+
+    // ============================================================
+    // Derived metrics
+    // ============================================================
+
+    /**
+     * Calculates total waiting time before the Job starts running.
+     *
+     * waiting time = start time - actual arrival time
+     *
+     * @return waiting time in milliseconds
+     */
+    public long waitingTime() {
+        return startTime - actualArrivalTime;
+    }
+
+    /**
+     * Calculates total turnaround time.
+     *
+     * turnaround time = completion time - actual arrival time
+     *
+     * @return turnaround time in milliseconds
+     */
+    public long turnaroundTime() {
+        return completionTime - actualArrivalTime;
+    }
+
+    /**
+     * Calculates the amount of time spent waiting for the shared resource.
+     *
+     * Jobs without a resource requirement have zero resource waiting time.
+     *
+     * @return resource waiting time in milliseconds
+     */
+    public long resourceWaitTime() {
+        if (resource == ResourceType.NONE) {
+            return 0;
+        }
+
+        return resourceAcquireTime - resourceWaitStartTime;
+    }
+
+    // ============================================================
+    // Debug / logging
+    // ============================================================
+
+    /**
+     * Returns the Job ID when the Job is printed.
+     */
     @Override
     public String toString() {
         return id;
