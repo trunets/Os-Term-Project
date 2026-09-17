@@ -1,53 +1,41 @@
 import java.util.ArrayList;
 import java.util.List;
-
-/**
- * Statistics.java
- *
- * Shared by all Worker threads — each Worker calls recordJob() once, after
- * a Job completes. Must be safe under concurrent writes from multiple
- * Workers at once, so every method that touches the internal list is
- * synchronized on this object.
- *
- * Metric formulas (spec section 10):
- *   Waiting Time        = startTime - actualArrivalTime
- *   Turnaround Time      = completionTime - actualArrivalTime
- *   Resource Wait Time   = resourceAcquireTime - resourceWaitStartTime (0 if resource == NONE)
- *   Throughput            = completedJobs / totalSimulationTimeMs
- *
- * Validation: turnaroundTime == waitingTime + workMs + resourceWaitTime + resourceMs
- * for every individual Job — check this per-Job, not just on the averages.
- */
+/** เก็บผลของงานที่เสร็จแล้วแบบปลอดภัยสำหรับการเขียนพร้อมกันจาก Worker หลายตัว */
 public class Statistics {
-
     private final List<Job> completedJobs = new ArrayList<>();
-
-    /** Called once per Job, by whichever Worker finished it. */
-    public synchronized void recordJob(Job job) {
-        // TODO: optionally validate the TAT equation here before adding
-        // (useful during testing — e.g. assert or log a warning on mismatch).
-        completedJobs.add(job);
+    /** บันทึกงานที่ทำเสร็จหนึ่งครั้งต่อหนึ่งงาน */
+    public synchronized void recordJob(Job job) { completedJobs.add(job); }
+    public synchronized int completedCount() { return completedJobs.size(); }
+    /** คำนวณค่าเฉลี่ยเวลารอของงานทุกงาน หน่วยเป็นมิลลิวินาที */
+    public synchronized double averageWaitingTime() { return averageOf(Job::waitingTime, completedJobs); }
+    /** คำนวณค่าเฉลี่ยเวลาตั้งแต่มาถึงจนเสร็จของงานทุกงาน หน่วยเป็นมิลลิวินาที */
+    public synchronized double averageTurnaroundTime() { return averageOf(Job::turnaroundTime, completedJobs); }
+    /** คำนวณค่าเฉลี่ยเวลารอทรัพยากรเฉพาะงานที่ร้องขอทรัพยากร */
+    public synchronized double averageResourceWaitTime() {
+        List<Job> resourceJobs = new ArrayList<>();
+        for (Job job : completedJobs) if (job.getResource() != Job.ResourceType.NONE) resourceJobs.add(job);
+        return averageOf(Job::resourceWaitTime, resourceJobs);
     }
-
-    public synchronized int completedCount() {
-        return completedJobs.size();
-    }
-
-    // TODO: implement using the formulas above, averaged over completedJobs.
-    public synchronized double averageWaitingTime() { return 0; }
-    public synchronized double averageTurnaroundTime() { return 0; }
-
-    /** Average over ONLY Jobs whose resource != NONE (per spec section 10). */
-    public synchronized double averageResourceWaitTime() { return 0; }
-
+    /** คำนวณ throughput เป็นจำนวนงานที่เสร็จต่อวินาที */
     public synchronized double throughput(long totalSimulationTimeMs) {
-        // TODO: completedCount() / totalSimulationTimeMs, with consistent units
-        // (report with at least two decimal places per spec section 14).
-        return 0;
+        return totalSimulationTimeMs <= 0 ? 0 : completedJobs.size() * 1000.0 / totalSimulationTimeMs;
     }
-
-    /** Prints the final summary table required by spec section 14. */
+    /** แสดงสรุปเมทริกซ์ตามข้อกำหนดของโครงงาน */
     public synchronized void printSummary(long totalSimulationTimeMs) {
-        // TODO
+        System.out.println("\n===== สรุปผลการจำลอง =====");
+        System.out.printf("งานที่เสร็จ: %d%n", completedCount());
+        System.out.printf("เวลารอเฉลี่ย: %.0f ms%n", averageWaitingTime());
+        System.out.printf("เวลาตั้งแต่มาถึงจนเสร็จเฉลี่ย: %.0f ms%n", averageTurnaroundTime());
+        System.out.printf("เวลารอทรัพยากรเฉลี่ย: %.0f ms%n", averageResourceWaitTime());
+        System.out.printf("Throughput: %.2f jobs/second%n", throughput(totalSimulationTimeMs));
+    }
+    /** นิยามฟังก์ชันสำหรับอ่านค่าเวลาจาก Job */
+    private interface JobMetric { long value(Job job); }
+    /** รวมค่าแล้วหารด้วยจำนวนงาน โดยคืนศูนย์เมื่อลิสต์ว่าง */
+    private static double averageOf(JobMetric metric, List<Job> jobs) {
+        if (jobs.isEmpty()) return 0;
+        long total = 0;
+        for (Job job : jobs) total += metric.value(job);
+        return (double) total / jobs.size();
     }
 }

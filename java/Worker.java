@@ -1,24 +1,7 @@
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-
-/**
- * Worker.java (implements Runnable — multiple instances run on their own Threads)
- *
- * Owns: pulling Jobs from readyQueue and executing processJob() per the
- * required 7-step order (spec section 6).
- *
- * Shared data touched:
- *   - readyQueue                        (thread-safe consumer)
- *   - resourceManager                   (Semaphores are thread-safe by design)
- *   - statistics                        (must synchronize internally — many Workers write concurrently)
- *   - runningJobs / completedJobs counters (AtomicInteger, also read by Monitor)
- *
- * Interruption: a Worker can be interrupted while blocked in readyQueue.take(),
- * Thread.sleep(), or semaphore.acquire(). Every acquired Semaphore permit
- * MUST be released even on interruption — use try/finally around the
- * acquire→use→release sequence.
- */
+/** รับงานจาก ReadyQueue และประมวลผลงานพร้อมจัดการทรัพยากรที่ใช้ร่วมกันอย่างปลอดภัย */
 public class Worker implements Runnable {
-
     private final String name;
     private final ReadyQueue readyQueue;
     private final ResourceManager resourceManager;
@@ -27,46 +10,70 @@ public class Worker implements Runnable {
     private final long simulationStart;
     private final AtomicInteger runningJobs;
     private final AtomicInteger completedJobs;
-
-    public Worker(String name, ReadyQueue readyQueue, ResourceManager resourceManager,
-                   Statistics statistics, ProjectLogger logger, long simulationStart,
-                   AtomicInteger runningJobs, AtomicInteger completedJobs) {
-        this.name = name;
-        this.readyQueue = readyQueue;
-        this.resourceManager = resourceManager;
-        this.statistics = statistics;
-        this.logger = logger;
-        this.simulationStart = simulationStart;
-        this.runningJobs = runningJobs;
-        this.completedJobs = completedJobs;
+    public Worker(String name, ReadyQueue readyQueue, ResourceManager resourceManager, Statistics statistics,
+                  ProjectLogger logger, long simulationStart, AtomicInteger runningJobs, AtomicInteger completedJobs) {
+        this.name = name; this.readyQueue = readyQueue; this.resourceManager = resourceManager;
+        this.statistics = statistics; this.logger = logger; this.simulationStart = simulationStart;
+        this.runningJobs = runningJobs; this.completedJobs = completedJobs;
     }
-
-    @Override
-    public void run() {
-        // TODO:
-        // loop:
-        //   Job job = readyQueue.take();  // blocks — handle InterruptedException -> break loop
-        //   if (job is the poison pill) { return; }  // graceful shutdown signal from Scheduler
-        //   processJob(job);
+    @Override public void run() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                Job job = readyQueue.take();
+                if (job.isPoisonPill()) return;
+                if (!processJob(job)) return;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
-
-    /**
-     * Executes one Job following the required 7-step order (spec section 6):
-     *   1. record startTime, state = RUNNING, runningJobs.incrementAndGet(), log START
-     *   2. Thread.sleep(job.getWorkMs())
-     *   3. if resource != NONE: record resourceWaitStartTime, state = WAITING_RESOURCE,
-     *      log WAIT <resource>, acquire the right Semaphore via resourceManager,
-     *      record resourceAcquireTime, log ACQUIRE <resource>
-     *   4. Thread.sleep(job.getResourceMs())
-     *   5. release the Semaphore in a finally block, log RELEASE <resource>
-     *   6. record completionTime, state = COMPLETED, log COMPLETE
-     *   7. statistics.recordJob(job); runningJobs.decrementAndGet(); completedJobs.incrementAndGet()
-     *
-     * TODO: implement steps 1-7. Wrap resource acquisition/use in try/finally
-     * so the permit is never lost, even if Thread.sleep() throws
-     * InterruptedException while the permit is held.
-     */
-    private void processJob(Job job) {
-        // TODO
+    /** ทำงานตามลำดับ: งานหลัก รอ/ใช้ทรัพยากร แล้วบันทึกผลเมื่อเสร็จ */
+    private boolean processJob(Job job) {
+        boolean countedAsRunning = false;
+        Semaphore semaphore = null;
+        boolean acquired = false;
+        try {
+            job.setStartTime(elapsedMs());
+            job.setState(Job.State.RUNNING);
+            runningJobs.incrementAndGet();
+            countedAsRunning = true;
+            logger.log(name, job.getId() + " START");
+            Thread.sleep(job.getWorkMs());
+            if (job.getResource() != Job.ResourceType.NONE) {
+                semaphore = resourceManager.getSemaphore(job.getResource());
+                job.setResourceWaitStartTime(elapsedMs());
+                job.setState(Job.State.WAITING_RESOURCE);
+                logger.log(name, job.getId() + " WAIT " + job.getResource());
+                semaphore.acquire();
+                acquired = true;
+                job.setResourceAcquireTime(elapsedMs());
+                logger.log(name, job.getId() + " ACQUIRE " + job.getResource());
+                try {
+                    Thread.sleep(job.getResourceMs());
+                } finally {
+                    semaphore.release();
+                    acquired = false;
+                    logger.log(name, job.getId() + " RELEASE " + job.getResource());
+                }
+            }
+            job.setCompletionTime(elapsedMs());
+            job.setState(Job.State.COMPLETED);
+            logger.log(name, job.getId() + " COMPLETE");
+            statistics.recordJob(job);
+            completedJobs.incrementAndGet();
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            if (acquired) {
+                semaphore.release();
+                logger.log(name, job.getId() + " RELEASE " + job.getResource());
+            }
+            if (countedAsRunning) runningJobs.decrementAndGet();
+        }
     }
+    /** คืนเวลาที่ผ่านไปนับจากจุดเริ่มต้นการจำลอง */
+    private long elapsedMs() { return System.currentTimeMillis() - simulationStart; }
 }

@@ -1,46 +1,28 @@
 import java.util.concurrent.BlockingQueue;
-
-/**
- * Scheduler.java (implements Runnable — run on its own Thread)
- *
- * Owns: draining arrivalQueue and handing each Job to the ReadyQueue
- * (which applies the FCFS/Priority ordering via its Comparator).
- *
- * Shared data touched: arrivalQueue (consumer side), readyQueue (producer
- * side). Both are internally thread-safe BlockingQueue-based structures,
- * so the Scheduler needs no extra synchronization of its own.
- *
- * This thread blocks on arrivalQueue.take() rather than polling, so it
- * never busy-waits while there is nothing to schedule.
- */
+/** รับงานจาก arrivalQueue จัดเป็น READY แล้วส่งต่อไปยัง ReadyQueue ตามนโยบายที่เลือก */
 public class Scheduler implements Runnable {
-
     private final BlockingQueue<Job> arrivalQueue;
     private final ReadyQueue readyQueue;
     private final ProjectLogger logger;
-    private final long simulationStart;
-
-    public Scheduler(BlockingQueue<Job> arrivalQueue, ReadyQueue readyQueue,
-                      ProjectLogger logger, long simulationStart) {
-        this.arrivalQueue = arrivalQueue;
-        this.readyQueue = readyQueue;
-        this.logger = logger;
-        this.simulationStart = simulationStart;
+    private final int workerCount;
+    public Scheduler(BlockingQueue<Job> arrivalQueue, ReadyQueue readyQueue, ProjectLogger logger, int workerCount) {
+        this.arrivalQueue = arrivalQueue; this.readyQueue = readyQueue; this.logger = logger; this.workerCount = workerCount;
     }
-
-    @Override
-    public void run() {
-        // TODO:
-        // loop:
-        //   Job job = arrivalQueue.take();   // blocks — handle InterruptedException
-        //   if (job is the poison pill signalling "JobGenerator done") {
-        //       // forward the shutdown signal onward, e.g. put one poison-pill
-        //       // Job into readyQueue per Worker thread so each Worker's
-        //       // take() unblocks and can exit its loop.
-        //       return;
-        //   }
-        //   job.setState(Job.State.READY);
-        //   logger.log("Scheduler", job.getId() + " READY");
-        //   readyQueue.put(job);
+    @Override public void run() {
+        try {
+            while (true) {
+                Job job = arrivalQueue.take();
+                if (job.isPoisonPill()) {
+                    // งานจริงถูกเพิ่มเข้า ReadyQueue ครบแล้ว จึงส่งสัญญาณหยุดให้ Worker ทุกตัว
+                    for (int index = 0; index < workerCount; index++) readyQueue.put(Job.poisonPill());
+                    return;
+                }
+                job.setState(Job.State.READY);
+                logger.log("Scheduler", job.getId() + " READY");
+                readyQueue.put(job);
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

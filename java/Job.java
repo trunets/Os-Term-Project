@@ -1,61 +1,38 @@
 /**
- * Job.java
- *
- * Immutable job data (id, arrivalMs, priority, workMs, resource, resourceMs)
- * plus mutable lifecycle fields (state + timestamps).
- *
- * Concurrency note: the mutable fields below are written by the single
- * Worker thread that owns this Job at any given time, and read by the
- * Monitor thread for reporting. They are declared volatile so the Monitor
- * always sees the latest value without needing a lock (single-writer /
- * multi-reader pattern) — no other synchronization is required for them.
+ * แทนข้อมูลงานจาก workload และสถานะการทำงานของงานนั้น
+ * ข้อมูลที่อ่านจาก CSV เปลี่ยนแปลงไม่ได้ ส่วนเวลาและสถานะเป็น volatile เพื่อให้
+ * Monitor อ่านค่าล่าสุดได้อย่างปลอดภัยในรูปแบบผู้เขียนหนึ่งราย/ผู้อ่านหลายราย
  */
 public class Job {
-
-    /** Project-level lifecycle states (do NOT map 1:1 to Thread.State). */
-    public enum State {
-        ARRIVED, READY, RUNNING, WAITING_RESOURCE, COMPLETED
-    }
-
-    /** A Job uses at most one shared resource. */
-    public enum ResourceType {
-        NONE, PRINTER, DATABASE
-    }
-
-    // ---- Immutable job data (from workload file) ----
+    /** สถานะระดับโปรเจกต์ ไม่ได้เทียบแบบหนึ่งต่อหนึ่งกับ Thread.State */
+    public enum State { ARRIVED, READY, RUNNING, WAITING_RESOURCE, COMPLETED }
+    /** งานหนึ่งงานขอทรัพยากรที่ใช้ร่วมกันได้สูงสุดหนึ่งชนิด */
+    public enum ResourceType { NONE, PRINTER, DATABASE }
     private final String id;
-    private final long arrivalMs;      // scheduled arrival offset from simulationStart
-    private final int priority;        // 1 = highest priority
+    private final long arrivalMs;
+    private final int priority;
     private final long workMs;
     private final ResourceType resource;
     private final long resourceMs;
-
-    // Tie-break helper: a monotonically increasing sequence number assigned
-    // once (e.g. when the Job is loaded or first arrives). Using this for
-    // tie-breaks keeps ordering deterministic and independent of which
-    // Thread happens to reach a queue first.
     private final long sequenceNumber;
-
-    // ---- Mutable lifecycle data (single-writer: whichever Worker owns this Job) ----
+    private final boolean poisonPill;
     private volatile State state = State.ARRIVED;
-    private volatile long actualArrivalTime;      // ms since simulationStart, set by JobGenerator
-    private volatile long startTime;               // set by Worker at step 1
-    private volatile long resourceWaitStartTime;   // set by Worker before acquire()
-    private volatile long resourceAcquireTime;     // set by Worker after acquire()
-    private volatile long completionTime;          // set by Worker at step 6
-
-    public Job(String id, long arrivalMs, int priority, long workMs,
-               ResourceType resource, long resourceMs, long sequenceNumber) {
-        this.id = id;
-        this.arrivalMs = arrivalMs;
-        this.priority = priority;
-        this.workMs = workMs;
-        this.resource = resource;
-        this.resourceMs = resourceMs;
-        this.sequenceNumber = sequenceNumber;
+    private volatile long actualArrivalTime;
+    private volatile long startTime;
+    private volatile long resourceWaitStartTime;
+    private volatile long resourceAcquireTime;
+    private volatile long completionTime;
+    public Job(String id, long arrivalMs, int priority, long workMs, ResourceType resource, long resourceMs, long sequenceNumber) {
+        this(id, arrivalMs, priority, workMs, resource, resourceMs, sequenceNumber, false);
     }
-
-    // ---- Getters for immutable fields ----
+    private Job(String id, long arrivalMs, int priority, long workMs, ResourceType resource, long resourceMs, long sequenceNumber, boolean poisonPill) {
+        this.id = id; this.arrivalMs = arrivalMs; this.priority = priority; this.workMs = workMs;
+        this.resource = resource; this.resourceMs = resourceMs; this.sequenceNumber = sequenceNumber; this.poisonPill = poisonPill;
+    }
+    /** สร้างค่างานพิเศษสำหรับบอกเธรดให้หยุดหลังงานจริงทั้งหมดในคิว */
+    public static Job poisonPill() {
+        return new Job("__POISON_PILL__", Long.MAX_VALUE, Integer.MAX_VALUE, 0, ResourceType.NONE, 0, Long.MAX_VALUE, true);
+    }
     public String getId() { return id; }
     public long getArrivalMs() { return arrivalMs; }
     public int getPriority() { return priority; }
@@ -63,35 +40,24 @@ public class Job {
     public ResourceType getResource() { return resource; }
     public long getResourceMs() { return resourceMs; }
     public long getSequenceNumber() { return sequenceNumber; }
-
-    // ---- Getters/setters for lifecycle fields ----
+    public boolean isPoisonPill() { return poisonPill; }
     public State getState() { return state; }
     public void setState(State state) { this.state = state; }
-
     public long getActualArrivalTime() { return actualArrivalTime; }
-    public void setActualArrivalTime(long t) { this.actualArrivalTime = t; }
-
+    public void setActualArrivalTime(long time) { this.actualArrivalTime = time; }
     public long getStartTime() { return startTime; }
-    public void setStartTime(long t) { this.startTime = t; }
-
+    public void setStartTime(long time) { this.startTime = time; }
     public long getResourceWaitStartTime() { return resourceWaitStartTime; }
-    public void setResourceWaitStartTime(long t) { this.resourceWaitStartTime = t; }
-
+    public void setResourceWaitStartTime(long time) { this.resourceWaitStartTime = time; }
     public long getResourceAcquireTime() { return resourceAcquireTime; }
-    public void setResourceAcquireTime(long t) { this.resourceAcquireTime = t; }
-
+    public void setResourceAcquireTime(long time) { this.resourceAcquireTime = time; }
     public long getCompletionTime() { return completionTime; }
-    public void setCompletionTime(long t) { this.completionTime = t; }
-
-    // TODO: derived metrics per spec section 10 — implement once all
-    // timestamps above are being set correctly by Worker.processJob().
-    // public long waitingTime()       { return startTime - actualArrivalTime; }
-    // public long turnaroundTime()    { return completionTime - actualArrivalTime; }
-    // public long resourceWaitTime()  { return resource == ResourceType.NONE
-    //                                        ? 0 : resourceAcquireTime - resourceWaitStartTime; }
-
-    @Override
-    public String toString() {
-        return id;
-    }
+    public void setCompletionTime(long time) { this.completionTime = time; }
+    /** เวลารอตั้งแต่มาถึงจน Worker เริ่มทำงาน */
+    public long waitingTime() { return startTime - actualArrivalTime; }
+    /** เวลาตั้งแต่มาถึงจนงานเสร็จ */
+    public long turnaroundTime() { return completionTime - actualArrivalTime; }
+    /** เวลาที่รอ Semaphore; งานที่ไม่ใช้ทรัพยากรมีค่าเป็นศูนย์ */
+    public long resourceWaitTime() { return resource == ResourceType.NONE ? 0 : resourceAcquireTime - resourceWaitStartTime; }
+    @Override public String toString() { return id; }
 }

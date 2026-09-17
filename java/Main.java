@@ -1,104 +1,76 @@
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-
-/**
- * Main.java
- *
- * Owns: argument parsing/validation, object wiring, starting all Threads,
- * waiting for completion, graceful shutdown, and printing the final summary.
- *
- * Usage:
- *   java Main <workload.csv> <fcfs|priority> <workers> <printerPermits> <databasePermits>
- */
+/** สร้างส่วนประกอบของระบบ เริ่มเธด รอให้จบ และปิดระบบอย่างปลอดภัย */
 public class Main {
-
     public static void main(String[] args) {
-        // ---- 1. Validate arguments BEFORE starting any Thread ----
-        if (args.length != 5) {
-            printUsageAndExit();
-            return;
-        }
-
+        if (args.length != 5) { printUsage(); return; }
         String workloadPath = args[0];
         String policyName = args[1].toLowerCase();
-        int workerCount = 0, printerPermits = 0, databasePermits = 0;
-
-        // TODO: parse+validate args[2..4] as positive integers; validate
-        // policyName is exactly "fcfs" or "priority"; validate workloadPath
-        // exists/is readable. On ANY failure: print usage and return WITHOUT
-        // starting any Thread (spec section 12 — "do not silently use defaults").
-
-        // ---- 2. Load workload (instructor-provided WorkloadLoader) ----
-        List<Job> workload;
+        if (!policyName.equals("fcfs") && !policyName.equals("priority")) { printUsage(); return; }
+        int workerCount, printerPermits, databasePermits;
         try {
-            workload = WorkloadLoader.load(workloadPath);
-        } catch (Exception e) {
-            System.err.println("Failed to load workload: " + e.getMessage());
-            return;
+            workerCount = parsePositiveInt(args[2], "workers");
+            printerPermits = parsePositiveInt(args[3], "printerPermits");
+            databasePermits = parsePositiveInt(args[4], "databasePermits");
+        } catch (IllegalArgumentException exception) {
+            System.err.println(exception.getMessage()); printUsage(); return;
         }
-
-        // ---- 3. Create shared system objects ----
+        if (!Files.isRegularFile(Path.of(workloadPath)) || !Files.isReadable(Path.of(workloadPath))) {
+            System.err.println("ไม่พบไฟล์ workload หรือไม่มีสิทธิ์อ่าน: " + workloadPath); return;
+        }
+        List<Job> workload;
+        try { workload = WorkloadLoader.load(workloadPath); }
+        catch (Exception exception) { System.err.println("โหลด workload ไม่สำเร็จ: " + exception.getMessage()); return; }
         long simulationStart = System.currentTimeMillis();
         ProjectLogger logger = new ProjectLogger(simulationStart);
-
         BlockingQueue<Job> arrivalQueue = new LinkedBlockingQueue<>();
-        SchedulingPolicy policy = policyName.equals("priority")
-                ? new PriorityPolicy() : new FcfsPolicy();
+        SchedulingPolicy policy = policyName.equals("priority") ? new PriorityPolicy() : new FcfsPolicy();
         ReadyQueue readyQueue = new ReadyQueue(policy);
         ResourceManager resourceManager = new ResourceManager(printerPermits, databasePermits);
         Statistics statistics = new Statistics();
-
-        AtomicInteger runningJobs = new AtomicInteger(0);
-        AtomicInteger completedJobs = new AtomicInteger(0);
-        int totalJobs = workload.size();
-
-        // ---- 4. Create Threads ----
-        Thread generatorThread = new Thread(
-                new JobGenerator(workload, arrivalQueue, logger, simulationStart), "JobGenerator");
-        Thread schedulerThread = new Thread(
-                new Scheduler(arrivalQueue, readyQueue, logger, simulationStart), "Scheduler");
-
+        AtomicInteger runningJobs = new AtomicInteger();
+        AtomicInteger completedJobs = new AtomicInteger();
+        Thread generatorThread = new Thread(new JobGenerator(workload, arrivalQueue, logger, simulationStart), "JobGenerator");
+        Thread schedulerThread = new Thread(new Scheduler(arrivalQueue, readyQueue, logger, workerCount), "Scheduler");
         Thread[] workerThreads = new Thread[workerCount];
-        for (int i = 0; i < workerCount; i++) {
-            String name = "Worker-" + (i + 1);
-            workerThreads[i] = new Thread(
-                    new Worker(name, readyQueue, resourceManager, statistics,
-                               logger, simulationStart, runningJobs, completedJobs),
-                    name);
+        for (int index = 0; index < workerCount; index++) {
+            String name = "Worker-" + (index + 1);
+            workerThreads[index] = new Thread(new Worker(name, readyQueue, resourceManager, statistics, logger,
+                    simulationStart, runningJobs, completedJobs), name);
         }
-
-        Thread monitorThread = new Thread(
-                new Monitor(readyQueue, runningJobs, completedJobs, totalJobs,
-                            resourceManager, logger, simulationStart, 1000L), "Monitor");
-
-        // ---- 5. Start all Threads ----
-        generatorThread.start();
-        schedulerThread.start();
-        for (Thread t : workerThreads) t.start();
+        Thread monitorThread = new Thread(new Monitor(readyQueue, runningJobs, completedJobs, workload.size(),
+                resourceManager, logger, simulationStart, 1000L), "Monitor");
+        generatorThread.start(); schedulerThread.start();
+        for (Thread workerThread : workerThreads) workerThread.start();
         monitorThread.start();
-
-        // ---- 6. Wait for the system to finish ----
-        // TODO: design the graceful shutdown handshake described in spec
-        // section 9:
-        //   (a) JobGenerator finishes submitting        -> Scheduler knows via poison pill
-        //   (b) all Jobs have completed                 -> e.g. a CountDownLatch(totalJobs)
-        //       that each Worker counts down after statistics.recordJob(job)
-        //   (c) Workers can safely stop                 -> Scheduler sends one poison-pill
-        //       Job per Worker into readyQueue once (a) happens
-        //   (d) Monitor can safely stop                 -> Main interrupts monitorThread
-        //       after the CountDownLatch reaches zero
-        // Then join() every thread (generatorThread, schedulerThread, each
-        // worker, monitorThread). Do NOT call System.exit().
-
-        // ---- 7. Print final summary ----
-        long totalSimulationTimeMs = System.currentTimeMillis() - simulationStart;
-        statistics.printSummary(totalSimulationTimeMs);
+        try {
+            // Scheduler ส่ง poison pill หลังรับงานจริงครบ และ Worker จะจบหลังประมวลผลงานทั้งหมด
+            generatorThread.join(); schedulerThread.join();
+            for (Thread workerThread : workerThreads) workerThread.join();
+            monitorThread.interrupt(); monitorThread.join();
+        } catch (InterruptedException exception) {
+            // หาก Main ถูก interrupt ให้ส่งต่อสัญญาณหยุดแก่เธรดทั้งหมดและคืนสถานะ interrupt
+            generatorThread.interrupt(); schedulerThread.interrupt(); monitorThread.interrupt();
+            for (Thread workerThread : workerThreads) workerThread.interrupt();
+            Thread.currentThread().interrupt(); return;
+        }
+        statistics.printSummary(System.currentTimeMillis() - simulationStart);
     }
-
-    private static void printUsageAndExit() {
+    /** แปลงค่าจำนวนเต็มบวกจาก argument และแจ้งชื่อค่าที่ผิด */
+    private static int parsePositiveInt(String value, String label) {
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed <= 0) throw new NumberFormatException();
+            return parsed;
+        } catch (NumberFormatException exception) { throw new IllegalArgumentException(label + " ต้องเป็นจำนวนเต็มบวก"); }
+    }
+    /** แสดงรูปแบบคำสั่งตามข้อกำหนดของโครงงาน */
+    private static void printUsage() {
         System.err.println("Usage: java Main <workload.csv> <fcfs|priority> <workers> <printerPermits> <databasePermits>");
-        System.err.println("Example: java Main jobs_standard.csv priority 3 1 2");
+        System.err.println("Example: java Main csv/jobs_standard.csv priority 3 1 2");
     }
 }
