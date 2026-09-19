@@ -1,3 +1,4 @@
+
 /**
  * Job.java
  *
@@ -42,23 +43,34 @@ public class Job {
     // ============================================================
     // Immutable job data
     // ============================================================
-
-    /** Job identifier from the workload file. */
+    /**
+     * Job identifier from the workload file.
+     */
     private final String id;
 
-    /** Scheduled arrival offset from simulationStart in milliseconds. */
+    /**
+     * Scheduled arrival offset from simulationStart in milliseconds.
+     */
     private final long arrivalMs;
 
-    /** Job priority. 1 means the highest priority. */
+    /**
+     * Job priority. 1 means the highest priority.
+     */
     private final int priority;
 
-    /** Amount of CPU/work time required by this Job in milliseconds. */
+    /**
+     * Amount of CPU/work time required by this Job in milliseconds.
+     */
     private final long workMs;
 
-    /** Shared resource required by this Job. */
+    /**
+     * Shared resource required by this Job.
+     */
     private final ResourceType resource;
 
-    /** Amount of time the Job needs the resource in milliseconds. */
+    /**
+     * Amount of time the Job needs the resource in milliseconds.
+     */
     private final long resourceMs;
 
     /**
@@ -70,7 +82,6 @@ public class Job {
     // ============================================================
     // Mutable lifecycle data
     // ============================================================
-
     /**
      * Current lifecycle state of this Job.
      *
@@ -79,45 +90,49 @@ public class Job {
     private volatile State state = State.ARRIVED;
 
     /**
-     * Actual time when the Job was generated/arrived,
-     * measured as milliseconds since simulationStart.
+     * Actual time when the Job was generated/arrived, measured as milliseconds
+     * since simulationStart.
+     * -1 means timestamp has not been set yet.
      */
-    private volatile long actualArrivalTime;
+    private volatile long actualArrivalTime = -1;
 
     /**
      * Time when the Worker started processing the Job.
+     * -1 means timestamp has not been set yet.
      */
-    private volatile long startTime;
+    private volatile long startTime = -1;
 
     /**
      * Time when the Job started waiting for its shared resource.
+     * -1 means timestamp has not been set yet.
      */
-    private volatile long resourceWaitStartTime;
+    private volatile long resourceWaitStartTime = -1;
 
     /**
      * Time when the Job successfully acquired its shared resource.
+     * -1 means timestamp has not been set yet.
      */
-    private volatile long resourceAcquireTime;
+    private volatile long resourceAcquireTime = -1;
 
     /**
      * Time when the Job completed.
+     * -1 means timestamp has not been set yet.
      */
-    private volatile long completionTime;
+    private volatile long completionTime = -1;
 
     // ============================================================
     // Constructor
     // ============================================================
-
     /**
      * Creates a Job using data loaded from the workload file.
      *
-     * @param id              unique Job identifier
-     * @param arrivalMs       scheduled arrival offset in milliseconds
-     * @param priority        Job priority; 1 is highest
-     * @param workMs          required work time in milliseconds
-     * @param resource        shared resource required by the Job
-     * @param resourceMs      resource usage time in milliseconds
-     * @param sequenceNumber  deterministic tie-break sequence number
+     * @param id unique Job identifier
+     * @param arrivalMs scheduled arrival offset in milliseconds
+     * @param priority Job priority; 1 is highest
+     * @param workMs required work time in milliseconds
+     * @param resource shared resource required by the Job
+     * @param resourceMs resource usage time in milliseconds
+     * @param sequenceNumber deterministic tie-break sequence number
      */
     public Job(
             String id,
@@ -140,7 +155,6 @@ public class Job {
     // ============================================================
     // Getters for immutable job data
     // ============================================================
-
     public String getId() {
         return id;
     }
@@ -172,7 +186,6 @@ public class Job {
     // ============================================================
     // Lifecycle state
     // ============================================================
-
     public State getState() {
         return state;
     }
@@ -184,7 +197,6 @@ public class Job {
     // ============================================================
     // Lifecycle timestamps
     // ============================================================
-
     public long getActualArrivalTime() {
         return actualArrivalTime;
     }
@@ -228,7 +240,6 @@ public class Job {
     // ============================================================
     // Derived metrics
     // ============================================================
-
     /**
      * Calculates total waiting time before the Job starts running.
      *
@@ -237,7 +248,10 @@ public class Job {
      * @return waiting time in milliseconds
      */
     public long waitingTime() {
-        return startTime - actualArrivalTime;
+        if (startTime < 0 || actualArrivalTime < 0) {
+            return 0;
+        }
+        return Math.max(0, startTime - actualArrivalTime);
     }
 
     /**
@@ -248,7 +262,10 @@ public class Job {
      * @return turnaround time in milliseconds
      */
     public long turnaroundTime() {
-        return completionTime - actualArrivalTime;
+        if (completionTime < 0 || actualArrivalTime < 0) {
+            return 0;
+        }
+        return Math.max(0, completionTime - actualArrivalTime);
     }
 
     /**
@@ -263,9 +280,12 @@ public class Job {
             return 0;
         }
 
-        return resourceAcquireTime - resourceWaitStartTime;
-    }
+        if (resourceWaitStartTime < 0 || resourceAcquireTime < 0) {
+            return 0;
+        }
 
+        return Math.max(0, resourceAcquireTime - resourceWaitStartTime);
+    }
     // ============================================================
     // Debug / logging
     // ============================================================

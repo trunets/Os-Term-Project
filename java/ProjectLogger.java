@@ -13,6 +13,8 @@
  * Must be thread-safe: JobGenerator, Scheduler, every Worker, and Monitor
  * all call log() concurrently.
  */
+import java.io.FileWriter;
+import java.io.IOException;
 public class ProjectLogger {
 
     private final long simulationStart;
@@ -27,5 +29,10 @@ public class ProjectLogger {
     public synchronized void log(String threadName, String message) {
         long elapsed = System.currentTimeMillis() - simulationStart;
         System.out.printf("[%04d ms] [%s] %s%n", elapsed, threadName, message);
+        try (FileWriter writer = new FileWriter("log.txt", true)) {
+            writer.write(String.format("[%04d ms] [%s] %s%n", elapsed, threadName, message));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
