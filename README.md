@@ -7,8 +7,8 @@ README.md สั้น ๆ: วิธี compile/run, ค่าที่ใส�
 ✅ JobGenerator.java
 
 V:
-Scheduler.java
-ReadyQueue.java
+✅ Scheduler.java
+✅ ReadyQueue.java
 Worker.java (SchedulingPolicy.java, 
              ResourceManager.java
              Statistics.java)
@@ -18,7 +18,7 @@ Monitor.java
 Main.java
 
 Test.java
-FcfsPolicy.java
-Priority.Policy.java
+✅ FcfsPolicy.java
+✅ Priority.Policy.java
 ProjectLogger.java
 </pre>
