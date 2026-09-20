@@ -8,10 +8,10 @@ import java.util.Comparator;
  * was selected on the command line, and hands the resulting Comparator to
  * the ReadyQueue.
  *
- * The comparator is used by a java.util.concurrent.PriorityBlockingQueue,
- * so it must define a total, deterministic order. Always finish with
- * sequenceNumber as the last tie-break so ordering never depends on which
- * Thread happened to reach the queue first.
+ * The comparator is used by a java.util.concurrent.PriorityBlockingQueue
+ * (wrapped by ReadyQueue), so it must define a total, deterministic order.
+ * Every policy must finish with arrivalMs and then sequenceNumber as the
+ * last tie-breaks, so ordering never depends on Thread timing.
  */
 public interface SchedulingPolicy {
 
