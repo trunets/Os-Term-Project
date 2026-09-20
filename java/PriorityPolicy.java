@@ -3,20 +3,23 @@ import java.util.Comparator;
 /**
  * PriorityPolicy.java
  *
- * Priority scheduling: lower priority number = selected first (1 = highest).
- * When two Jobs share the same priority, fall back to a deterministic
- * tie-break based on Job data (sequenceNumber), never on Thread timing.
+ * Priority scheduling (non-preemptive): a lower priority number is selected
+ * first (1 = highest).
+ *
+ * Tie-break chain when priorities are equal:
+ *   1. arrivalMs ascending        (earlier arrival first)
+ *   2. sequenceNumber ascending   (CSV row order, unique per Job)
+ *
+ * All three keys are immutable Job data and sequenceNumber is unique, so the
+ * order is total and never depends on which Thread reached the queue first.
  */
 public class PriorityPolicy implements SchedulingPolicy {
 
     @Override
     public Comparator<Job> comparator() {
-        // TODO: verify this satisfies "deterministic tie-break based on Job data"
-        // — you may swap sequenceNumber for arrival order or Job ID if your
-        // design defines the tie-break differently. Keep it consistent with
-        // what you write up for the report/Demo.
         return Comparator.comparingInt(Job::getPriority)
-                          .thenComparingLong(Job::getSequenceNumber);
+                         .thenComparingLong(Job::getArrivalMs)
+                         .thenComparingLong(Job::getSequenceNumber);
     }
 
     @Override
