@@ -6,7 +6,18 @@
  *
  * ไฟล์นี้เป็นโค้ดตั้งต้นที่อาจารย์แจก แต่ต่างจากไฟล์อื่นตรงที่
  * นักศึกษา "ต้องแก้" โดยเพิ่มฟิลด์ของตัวเองในส่วน TODO ด้านล่าง
+ * ===================================================================
+ * ส่วนข้อมูลจาก CSV มีแล้ว
+ * ที่ยังขาดคือฟิลด์สำหรับ metrics ของแต่ละ Job:
+ * actual arrival time
+ * start time
+ * completion time
+ * resource wait start
+ * resource wait time
+ * ต้องออกแบบเรื่อง thread-safety ของฟิลด์เหล่านี้ให้เหมาะสม
+ * ต้องสามารถตรวจสมการ Turnaround = Waiting + workMs + Resource Wait + resourceMs ได้
  */
+
 public class Job {
 
     /** รหัสงาน เช่น J01 — ไม่ซ้ำกันภายในหนึ่งไฟล์ workload */

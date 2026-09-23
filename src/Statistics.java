@@ -14,6 +14,16 @@ import java.util.List;
  *
  * ข้อควรระวัง: ค่าเฉลี่ยของ Resource Wait ให้คิดเฉพาะงานที่ใช้ resource
  * ส่วนงานที่ resource = NONE ให้ถือว่า Resource Wait เป็น 0
+ * ===============================================================
+ * ยังขาดการเก็บผลของ Job ที่เสร็จแล้ว
+ * ยังขาด recordCompletion()
+ * ยังขาด completedCount()
+ * ยังขาดการคำนวณ Waiting Time
+ * ยังขาด Turnaround Time
+ * ยังขาด Resource Wait Time
+ * ยังขาด Throughput
+ * ยังขาดการคำนวณค่าเฉลี่ยแบบ thread-safe
+ * ยังขาด printSummary() ตามรูปแบบผลลัพธ์ที่โจทย์กำหนด
  */
 public class Statistics {
 

@@ -10,6 +10,20 @@ import java.util.List;
  *
  * วิธีรัน:
  *   java Main jobs_standard.csv priority 3 1 2
+ * ==================================================================
+ * ยังขาดการสร้าง ResourceManager
+ * ยังขาดการสร้าง ReadyQueue
+ * ยังขาดการสร้าง Statistics
+ * ยังขาดการสร้าง Worker หลายตัว
+ * ยังขาดการสร้างและ start Scheduler
+ * ยังขาดการสร้างและ start Monitor
+ * ยังขาดการสร้างและ start JobGenerator
+ * ยังขาดการรอจน ทุก Job เสร็จ
+ * ยังขาด graceful shutdown
+ * ยังขาด join() ทุก Thread
+ * ยังขาดการพิมพ์ summary
+ * ยังขาด SYSTEM_STOP
+ * ต้องไม่ใช้ System.exit() เพื่อแก้ปัญหา shutdown
  */
 public class Main {
 

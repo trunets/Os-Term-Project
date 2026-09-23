@@ -16,6 +16,17 @@
  *   - ถ้า exception หรือ interrupt เกิดขึ้นหลัง acquire แต่ก่อน release
  *     permit จะค้างถาวรและระบบจะแขวน ต้องออกแบบให้คืนได้เสมอ
  *   - Worker ต้องหยุดเองได้เมื่อไม่มีงานเหลือแล้ว ไม่ใช่วนรอตลอดไป
+ * ================================================================
+ * ยังขาดการรับ Job จาก ReadyQueue
+ * ยังขาด startTime
+ * ยังขาด Thread.sleep(workMs)
+ * ยังขาดการวัดและบันทึก Resource Wait Time
+ * ยังขาด acquire/release
+ * ยังขาด try/finally หรือกลไกเทียบเท่าเพื่อไม่ให้ permit หาย
+ * ยังขาด completionTime
+ * ยังขาดการ update Statistics แบบ thread-safe
+ * ยังขาดการจัดการ InterruptedException
+ * ยังขาดการหยุด Worker อย่างถูกต้องเมื่อไม่มีงานเหลือ
  */
 public class Worker extends Thread {
 

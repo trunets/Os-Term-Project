@@ -10,6 +10,13 @@
  * ข้อควรคิด:
  *   - Scheduler รับงานจาก JobGenerator ผ่านอะไร และรอโดยไม่กิน CPU อย่างไร
  *   - เมื่อ JobGenerator ปล่อยงานครบแล้ว Scheduler รู้ได้อย่างไรว่าควรหยุด
+ * ================================================================
+ * ยังขาดช่องทางรับ Job จาก JobGenerator
+ * ยังขาดการทำงานเป็น Thread จริง
+ * ยังขาดการ take จาก Arrival Queue แล้วใส่ ReadyQueue
+ * ยังขาดการหยุดเมื่อ Generator ส่งงานครบ
+ * ยังขาดการ log สถานะ READY
+ * ห้ามให้ Generator ใส่ ReadyQueue โดยตรง
  */
 public class Scheduler extends Thread {
 
