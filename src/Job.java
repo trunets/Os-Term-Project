@@ -74,6 +74,14 @@ public class Job {
     //      Turnaround = Waiting + workMs + Resource Wait + resourceMs
     // =====================================================================
 
+    public int getSequenceNumber(){
+        return sequence;
+    }
+
+    public int getPriority(){
+        return priority;
+    }
+
     @Override
     public String toString() {
         return String.format("%s(priority=%d, work=%dms, %s)",
