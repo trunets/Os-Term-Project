@@ -9,7 +9,6 @@
  * ===================================================================
  * ส่วนข้อมูลจาก CSV มีแล้ว
  * ที่ยังขาดคือฟิลด์สำหรับ metrics ของแต่ละ Job:
- * actual arrival time
  * start time
  * completion time
  * resource wait start
@@ -37,6 +36,8 @@ public class Job {
 
     /** ระยะเวลาที่ถือครองทรัพยากร (มิลลิวินาที) เป็น 0 เสมอเมื่อ resource เป็น NONE */
     public final long resourceMs;
+
+    public volatile long actualArrivalMs = -1;
 
     /**
      * ลำดับที่งานนี้ปรากฏในไฟล์ workload เริ่มจาก 0

@@ -1,4 +1,7 @@
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * ปล่อยงานเข้าสู่ระบบตามเวลา arrivalMs ของแต่ละ Job
@@ -34,14 +37,37 @@ public class JobGenerator extends Thread {
     // ให้เพิ่ม parameter เข้าไปตามที่ออกแบบ เช่น BlockingQueue<Job>
     // หรือคลาสของกลุ่มเอง — เพิ่ม parameter ได้ แต่อย่าเปลี่ยนชื่อคลาส
 
-    public JobGenerator(List<Job> jobs, ProjectLogger logger) {
+    public static final Job POISON_PILL = new Job("POISON", -1, Integer.MAX_VALUE, 0, ResourceType.NONE, 0, -1);
+
+    private final List<Job> jobs;
+    private final BlockingQueue<Job> arrivalQueue;
+    private final ProjectLogger logger;
+
+    public JobGenerator(List<Job> jobs,BlockingQueue<Job> arrivalQueue, ProjectLogger logger) {
         super("generator");
-        // TODO
-        throw new UnsupportedOperationException("TODO: JobGenerator constructor");
+        this.jobs = new ArrayList<>(jobs);
+        this.jobs.sort(Comparator.comparingLong(j -> j.arrivalMs)); //handle unsorted workload
+        this.arrivalQueue = arrivalQueue;
+        this.logger = logger;
     }
 
     @Override
     public void run() {
-        // TODO: วนปล่อยงานตามเวลา แล้วแจ้งเมื่อปล่อยครบ
+        try {
+            for (Job job : jobs){
+                long now = logger.now();
+                long delay = job.arrivalMs - now;
+                if(delay > 0){
+                    Thread.sleep(delay);
+                }
+                job.actualArrivalMs = logger.now();
+                arrivalQueue.put(job);
+                logger.jobArrived(job);
+            }
+            logger.systemEvent("JobGenerator finished, sent poison pill");
+            arrivalQueue.put(POISON_PILL);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
