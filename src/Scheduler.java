@@ -24,13 +24,15 @@ public class Scheduler extends Thread {
     private final BlockingQueue<Job> arrivalQueue;
     private final ReadyQueue readyQueue;
     private final ProjectLogger logger;
+    private final int workerCount;
 
 
-    public Scheduler(BlockingQueue<Job> arrivalQueue, ReadyQueue readyQueue, ProjectLogger logger) {
+    public Scheduler(BlockingQueue<Job> arrivalQueue, ReadyQueue readyQueue, ProjectLogger logger, int workerCount) {
         super("scheduler");
         this.arrivalQueue = arrivalQueue;
         this.readyQueue = readyQueue;
         this.logger = logger;
+        this.workerCount = workerCount;
     }
 
     @Override
@@ -44,6 +46,9 @@ public class Scheduler extends Thread {
                 }
                 readyQueue.add(job);
                 logger.systemEvent(job.id + " READY");
+            }
+            for (int i = 0; i < workerCount; i++) {
+                readyQueue.add(JobGenerator.POISON_PILL);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

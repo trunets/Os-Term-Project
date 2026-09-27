@@ -14,10 +14,16 @@
  * resource wait start
  * resource wait time
  * ต้องออกแบบเรื่อง thread-safety ของฟิลด์เหล่านี้ให้เหมาะสม
- * ต้องสามารถตรวจสมการ Turnaround = Waiting + workMs + Resource Wait + resourceMs ได้
+ * ต้องสามารถตรวจสมการ Turnaround = Waiting + workMs + Resource Wait +
+ * resourceMs ได้
  */
 
 public class Job {
+
+    public volatile long actualArrivalMs = -1;
+    public volatile long startTime = -1;
+    public volatile long completionTime = -1;
+    public volatile long resourceWaitTime = 0; // stays 0 for resource == NONE
 
     /** รหัสงาน เช่น J01 — ไม่ซ้ำกันภายในหนึ่งไฟล์ workload */
     public final String id;
@@ -34,10 +40,10 @@ public class Job {
     /** ทรัพยากรร่วมที่ต้องใช้ หรือ NONE ถ้าไม่ต้องใช้ */
     public final ResourceType resource;
 
-    /** ระยะเวลาที่ถือครองทรัพยากร (มิลลิวินาที) เป็น 0 เสมอเมื่อ resource เป็น NONE */
+    /**
+     * ระยะเวลาที่ถือครองทรัพยากร (มิลลิวินาที) เป็น 0 เสมอเมื่อ resource เป็น NONE
+     */
     public final long resourceMs;
-
-    public volatile long actualArrivalMs = -1;
 
     /**
      * ลำดับที่งานนี้ปรากฏในไฟล์ workload เริ่มจาก 0
@@ -47,7 +53,7 @@ public class Job {
     public final int sequence;
 
     public Job(String id, long arrivalMs, int priority, long workMs,
-               ResourceType resource, long resourceMs, int sequence) {
+            ResourceType resource, long resourceMs, int sequence) {
         this.id = id;
         this.arrivalMs = arrivalMs;
         this.priority = priority;
@@ -61,25 +67,25 @@ public class Job {
     // TODO (นักศึกษา): เพิ่มฟิลด์สำหรับเก็บค่าที่ใช้วัดผลของงานชิ้นนี้เอง
     //
     // ค่าที่โครงงานต้องการ (ดูหัวข้อ 8 ของเอกสารโจทย์):
-    //   - เวลาที่เข้าสู่ระบบจริง
-    //   - เวลาที่เริ่มถูกทำโดย Worker
-    //   - เวลาที่ทำเสร็จ
-    //   - เวลาที่เริ่มรอ resource และเวลารอ resource รวม
+    // - เวลาที่เข้าสู่ระบบจริง
+    // - เวลาที่เริ่มถูกทำโดย Worker
+    // - เวลาที่ทำเสร็จ
+    // - เวลาที่เริ่มรอ resource และเวลารอ resource รวม
     //
     // สามคำถามที่ต้องตอบให้ได้ก่อนเขียน และจะถูกถามใน Demo:
-    //   1. ใช้เวลาจากนาฬิกาตัวไหน (ดู ProjectLogger.now() ซึ่งให้เวลาฐานเดียว
-    //      กับที่ปรากฏใน log ทำให้ค่าที่วัดกับ log ตรวจสอบกันได้)
-    //   2. ฟิลด์ใดถูกเขียนโดย Thread หนึ่งแล้วอ่านโดยอีก Thread หนึ่ง
-    //      และต้องป้องกันอย่างไร
-    //   3. ผลที่ได้ต้องสอดคล้องกับสมการตรวจสอบในหัวข้อ 8:
-    //      Turnaround = Waiting + workMs + Resource Wait + resourceMs
+    // 1. ใช้เวลาจากนาฬิกาตัวไหน (ดู ProjectLogger.now() ซึ่งให้เวลาฐานเดียว
+    // กับที่ปรากฏใน log ทำให้ค่าที่วัดกับ log ตรวจสอบกันได้)
+    // 2. ฟิลด์ใดถูกเขียนโดย Thread หนึ่งแล้วอ่านโดยอีก Thread หนึ่ง
+    // และต้องป้องกันอย่างไร
+    // 3. ผลที่ได้ต้องสอดคล้องกับสมการตรวจสอบในหัวข้อ 8:
+    // Turnaround = Waiting + workMs + Resource Wait + resourceMs
     // =====================================================================
 
-    public int getSequenceNumber(){
+    public int getSequenceNumber() {
         return sequence;
     }
 
-    public int getPriority(){
+    public int getPriority() {
         return priority;
     }
 

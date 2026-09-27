@@ -1,3 +1,7 @@
+import java.util.concurrent.Semaphore;
+
+import javax.swing.plaf.basic.BasicTreeUI.SelectionModelPropertyChangeHandler;
+
 /**
  * ควบคุมสิทธิ์การใช้ทรัพยากรร่วมของทั้งระบบ
  *
@@ -28,22 +32,34 @@
 public class ResourceManager {
 
     // TODO: เก็บ Semaphore ของ PRINTER และ DATABASE
+    private final Semaphore printerSemaphore;
+    private final Semaphore databaseSemaphore;
+    private final int printerPermits;
+    private final int databasePermits;
 
     public ResourceManager(int printerPermits, int databasePermits) {
-        // TODO
-        throw new UnsupportedOperationException("TODO: ResourceManager constructor");
+        this.printerPermits = printerPermits;
+        this.databasePermits = databasePermits;
+        this.printerSemaphore = new Semaphore(printerPermits, true);
+        this.databaseSemaphore = new Semaphore(databasePermits, true);
     }
 
     /** ขอสิทธิ์ใช้ทรัพยากร จะรอจนกว่าจะได้ */
     public void acquire(ResourceType type) throws InterruptedException {
-        // TODO
-        throw new UnsupportedOperationException("TODO: ResourceManager.acquire");
+        switch (type) {
+            case PRINTER -> printerSemaphore.acquire();
+            case DATABASE -> databaseSemaphore.acquire();
+            case NONE -> {}
+        }
     }
 
     /** คืนสิทธิ์ใช้ทรัพยากร */
     public void release(ResourceType type) {
-        // TODO
-        throw new UnsupportedOperationException("TODO: ResourceManager.release");
+        switch (type) {
+            case PRINTER -> printerSemaphore.release();
+            case DATABASE -> databaseSemaphore.release();
+            case NONE -> {}
+        }
     }
 
     /**
@@ -51,7 +67,10 @@ public class ResourceManager {
      * เช่น "printer=1/1 database=0/2"
      */
     public String status() {
-        // TODO
-        throw new UnsupportedOperationException("TODO: ResourceManager.status");
+        int printerInUse = printerPermits - printerSemaphore.availablePermits();
+        int databaseInUse = databasePermits - databaseSemaphore.availablePermits();
+        return String.format("printer=%d/%d database=%d/%d",
+            printerInUse, printerPermits, databaseInUse, databasePermits
+        );
     }
 }
