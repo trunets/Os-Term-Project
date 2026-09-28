@@ -1,7 +1,5 @@
 import java.util.concurrent.Semaphore;
 
-import javax.swing.plaf.basic.BasicTreeUI.SelectionModelPropertyChangeHandler;
-
 /**
  * ควบคุมสิทธิ์การใช้ทรัพยากรร่วมของทั้งระบบ
  *

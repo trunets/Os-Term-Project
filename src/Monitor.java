@@ -49,7 +49,6 @@ public class Monitor extends Thread {
         this.statistics = statistics;
         this.logger = logger;
 
-        throw new UnsupportedOperationException("TODO: Monitor constructor");
     }
 
     @Override

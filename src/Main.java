@@ -196,22 +196,27 @@ public class Main {
             scheduler.join();
 
             for (Worker worker : workers) {
-            worker.join();
-        }
+                worker.join();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return;
         }
-        
+
         // ---------- 7. สรุปผล ----------
         // หา makespan = เวลาที่งานชิ้นสุดท้ายเสร็จ (ใช้ logger.now())
         long makespan = logger.now();
 
         int completed = statistics.completedCount();
 
-        // เรียก statistics.printSummary(jobs, makespanMs)
-        statistics.printSummary(jobs, makespan);
-
+        for (Job job : jobs) {
+            if (job.completionTime > makespan) {
+                makespan = job.completionTime;
+                // เรียก statistics.printSummary(jobs, makespanMs)
+                statistics.printSummary(jobs, makespan);
+            }
+        }
+        
         // logger.systemStop(completed, jobs.size())
         logger.systemStop(completed, jobs.size());
     }
