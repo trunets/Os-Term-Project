@@ -48,7 +48,7 @@ public class Worker extends Thread {
 
     @Override
     public void run() {
-        // TODO: วนรับงานและเรียก processJob จนกว่าจะได้รับสัญญาณให้หยุด
+        // วนรับงานและเรียก processJob จนกว่าจะได้รับสัญญาณให้หยุด
         try {
             while (true) {
 

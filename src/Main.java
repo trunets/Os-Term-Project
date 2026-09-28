@@ -1,4 +1,7 @@
+
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * จุดเริ่มต้นของโปรแกรม
@@ -8,27 +11,20 @@ import java.util.List;
  * ส่วนที่เขียนไว้ให้แล้วคือการรับค่า การโหลด workload และการแสดง error
  * ซึ่งไม่ใช่สิ่งที่โครงงานนี้วัด ส่วนที่เหลือเป็น TODO ทั้งหมด
  *
- * วิธีรัน:
- *   java Main jobs_standard.csv priority 3 1 2
+ * วิธีรัน: java Main jobs_standard.csv priority 3 1 2
  * ==================================================================
- * ยังขาดการสร้าง ResourceManager
- * ยังขาดการสร้าง ReadyQueue
- * ยังขาดการสร้าง Statistics
- * ยังขาดการสร้าง Worker หลายตัว
- * ยังขาดการสร้างและ start Scheduler
- * ยังขาดการสร้างและ start Monitor
- * ยังขาดการสร้างและ start JobGenerator
- * ยังขาดการรอจน ทุก Job เสร็จ
- * ยังขาด graceful shutdown
- * ยังขาด join() ทุก Thread
- * ยังขาดการพิมพ์ summary
- * ยังขาด SYSTEM_STOP
- * ต้องไม่ใช้ System.exit() เพื่อแก้ปัญหา shutdown
+ * ยังขาดการสร้าง ResourceManager ยังขาดการสร้าง ReadyQueue ยังขาดการสร้าง
+ * Statistics ยังขาดการสร้าง Worker หลายตัว ยังขาดการสร้างและ start Scheduler
+ * ยังขาดการสร้างและ start Monitor ยังขาดการสร้างและ start JobGenerator
+ * ยังขาดการรอจน ทุก Job เสร็จ ยังขาด graceful shutdown ยังขาด join() ทุก Thread
+ * ยังขาดการพิมพ์ summary ยังขาด SYSTEM_STOP ต้องไม่ใช้ System.exit()
+ * เพื่อแก้ปัญหา shutdown
  */
 public class Main {
 
     public static void main(String[] args) {
         // ---------- 1. รับค่าจาก command line ----------
+
         Config config;
         try {
             config = Config.parse(args);
@@ -59,20 +55,116 @@ public class Main {
         logger.systemEvent("โหลดงานได้ " + jobs.size() + " ชิ้น");
 
         // ---------- 3. สร้างส่วนประกอบของระบบ ----------
-        // TODO: สร้าง ResourceManager จากจำนวน permit ใน config
-        // TODO: สร้าง ReadyQueue ตามนโยบายใน config
-        // TODO: สร้าง Statistics
+        // Shared arrival queue between JobGenerator and Scheduler
+        BlockingQueue<Job> arrivalQueue = new LinkedBlockingQueue<>();
+
+        // สร้าง ResourceManager จากจำนวน permit ใน config
+        ResourceManager resourceManager
+                = new ResourceManager(
+                        config.printerPermits,
+                        config.databasePermits
+                );
+
+        // สร้าง ReadyQueue ตามนโยบายใน config
+        ReadyQueue readyQueue
+                = new ReadyQueue(
+                        config.policy
+                );
+
+        // สร้าง Statistics
+        Statistics statistics = new Statistics();
 
         // ---------- 4. สร้างและเริ่ม Thread ----------
-        // TODO: สร้าง Worker จำนวน config.workers ตัว แล้ว start
-        // TODO: สร้างและ start Scheduler
-        // TODO: สร้างและ start Monitor
-        // TODO: สร้างและ start JobGenerator
-        //
-        // ลำดับการ start มีผลหรือไม่ ให้คิดและอธิบายได้ใน Demo
+        Worker[] workers = new Worker[config.workers];
+        // สร้าง Worker จำนวน config.workers ตัว แล้ว start
+        for (int i = 0; i < config.workers; i++) {
+            workers[i]
+                    = new Worker(
+                            "Worker: " + String.valueOf(i + 1),
+                            readyQueue,
+                            resourceManager,
+                            statistics,
+                            logger
+                    );
+            workers[i].start();
+        }
 
+        // สร้างและ start Scheduler
+        Scheduler scheduler
+                = new Scheduler(
+                        arrivalQueue,
+                        readyQueue,
+                        logger, config.workers
+                );
+        scheduler.start();
+
+        // สร้างและ start Monitor
+        Monitor monitor
+                = new Monitor(
+                        readyQueue,
+                        resourceManager,
+                        statistics,
+                        logger
+                );
+        monitor.start();
+
+        // สร้างและ start JobGenerator
+        JobGenerator jobGenerator
+                = new JobGenerator(
+                        jobs,
+                        arrivalQueue,
+                        logger
+                );
+        jobGenerator.start();
+
+        // ลำดับการ start มีผลหรือไม่ ให้คิดและอธิบายได้ใน Demo
         // ---------- 5. รอจนงานเสร็จครบ ----------
-        // TODO: รอจนกว่างานทั้ง jobs.size() ชิ้นจะเสร็จ
+        // รอจนกว่างานทั้ง jobs.size() ชิ้นจะเสร็จ
+        try {
+            // Generator must finish sending all jobs first.
+            // It sends POISON_PILL after the last job.
+            jobGenerator.join();
+
+            // Scheduler consumes all jobs and then puts one POISON_PILL
+            // for every Worker.
+            scheduler.join();
+
+            // Each Worker processes all jobs before consuming its
+            // POISON_PILL, so joining all Workers guarantees that
+            // every Job has completed.
+            for (Worker worker : workers) {
+                worker.join();
+            }
+
+        } catch (InterruptedException e) {
+            // Restore the interrupt flag before starting shutdown.
+            Thread.currentThread().interrupt();
+
+            // Interrupt all running threads so the JVM can shut down cleanly.
+            jobGenerator.interrupt();
+            scheduler.interrupt();
+            monitor.interrupt();
+
+            for (Worker worker : workers) {
+                worker.interrupt();
+            }
+
+            // Wait for every thread to terminate.
+            try {
+                jobGenerator.join();
+                scheduler.join();
+                monitor.join();
+
+                for (Worker worker : workers) {
+                    worker.join();
+                }
+            } catch (InterruptedException shutdownInterrupted) {
+                Thread.currentThread().interrupt();
+            }
+
+            return;
+        }
+
         //
         // *** นี่คือจุดที่ยากที่สุดของโครงงานนี้ ***
         // Worker ที่กำลังรออยู่ในคิวไม่มีทางรู้ได้เองว่าจะไม่มีงานเข้ามาอีกแล้ว
@@ -87,14 +179,40 @@ public class Main {
         //   1. main จบแล้วแต่ JVM ไม่ปิด เพราะยังมี Thread ค้างอยู่
         //   2. Worker หยุดก่อนที่งานชิ้นสุดท้ายจะทำเสร็จ
         //   3. permit ค้างเพราะถูก interrupt ระหว่างถือ resource
-
         // ---------- 6. สั่งหยุดทุก Thread ----------
-        // TODO: หยุด Worker ทุกตัว, Scheduler, Monitor และ JobGenerator
-        // TODO: join ทุก Thread เพื่อยืนยันว่าหยุดจริงก่อนไปขั้นถัดไป
+        // หยุด Worker ทุกตัว, Scheduler, Monitor และ JobGenerator
+        jobGenerator.interrupt();
+        scheduler.interrupt();
+        monitor.interrupt();
 
+        for (Worker worker : workers) {
+            worker.interrupt();
+        }
+
+        try {
+            // join ทุก Thread เพื่อยืนยันว่าหยุดจริงก่อนไปขั้นถัดไป
+            monitor.join();
+            jobGenerator.join();
+            scheduler.join();
+
+            for (Worker worker : workers) {
+            worker.join();
+        }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        
         // ---------- 7. สรุปผล ----------
-        // TODO: หา makespan = เวลาที่งานชิ้นสุดท้ายเสร็จ (ใช้ logger.now())
-        // TODO: เรียก statistics.printSummary(jobs, makespanMs)
-        // TODO: logger.systemStop(completed, jobs.size())
+        // หา makespan = เวลาที่งานชิ้นสุดท้ายเสร็จ (ใช้ logger.now())
+        long makespan = logger.now();
+
+        int completed = statistics.completedCount();
+
+        // เรียก statistics.printSummary(jobs, makespanMs)
+        statistics.printSummary(jobs, makespan);
+
+        // logger.systemStop(completed, jobs.size())
+        logger.systemStop(completed, jobs.size());
     }
 }
