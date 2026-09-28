@@ -1,3 +1,4 @@
+
 /**
  * Thread ที่ดึงงานจาก Ready Queue ไปทำจนเสร็จ
  *
@@ -50,45 +51,68 @@ public class Worker extends Thread {
         // TODO: วนรับงานและเรียก processJob จนกว่าจะได้รับสัญญาณให้หยุด
         try {
             while (true) {
+
+                // Wait for next Job from Ready Queue
                 Job job = readyQueue.take();
+
+                // Poison pill tell this worker to shutdown
                 if (job == JobGenerator.POISON_PILL) {
                     break;
                 }
-                logger.jobStarted(job);
-                Thread.sleep(job.workMs);
-                logger.jobCompleted(job);
+
+                // Process 1 Job
+                processJob(job);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
 
-    /** ทำงานหนึ่งชิ้นให้จบตามลำดับ 5 ขั้นด้านบน */
+    /**
+     * ทำงานหนึ่งชิ้นให้จบตามลำดับ 5 ขั้นด้านบน
+     */
     private void processJob(Job job) throws InterruptedException {
+        // 1. รับงานจาก Ready Queue แล้วบันทึกเวลาเริ่ม
         job.startTime = logger.now();
         logger.jobStarted(job);
+
+        // 2. จำลองงานหลักด้วย Thread.sleep(job.workMs)
         Thread.sleep(job.workMs);
         logger.workFinished(job);
 
+        // 3. ถ้า job.resource != NONE ให้บันทึกเวลาเริ่มรอ แล้ว acquire
         if (job.resource != ResourceType.NONE) {
             logger.resourceWaitStarted(job);
             long waitStart = logger.now();
 
-            resources.acquire(job.resource);
-
-            job.resourceWaitTime = logger.now() - waitStart;
-            logger.resourceAcquired(job, job.resourceWaitTime);
-
+            boolean acquired = false;
             try {
+                // ให้บันทึกเวลาเริ่มรอ แล้ว acquire
+                resources.acquire(job.resource);
+                acquired = true;
+
+                job.resourceWaitTime = logger.now() - waitStart;
+                logger.resourceAcquired(job, job.resourceWaitTime);
+
+                // 4. จำลองการถือครองด้วย Thread.sleep(job.resourceMs)
                 Thread.sleep(job.resourceMs);
             } finally {
-                resources.release(job.resource);
-                logger.resourceReleased(job);
+                // 5. release แล้วบันทึกเวลาจบ
+                if (acquired) {
+                    resources.release(job.resource);
+                    logger.resourceReleased(job);
+                }
             }
+        } else {
+            // job.resource without resource wait time = 0
+            job.resourceWaitTime = 0;
         }
 
+        //record completion time
         job.completionTime = logger.now();
         logger.jobCompleted(job);
+
+        // update statistics
         statistics.recordCompletion(job);
     }
 }
