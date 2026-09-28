@@ -60,8 +60,18 @@ public class Worker extends Thread {
                     break;
                 }
 
-                // Process 1 Job
-                processJob(job);
+                // This job is now being processed by this worker.
+                statistics.jobStarted();
+
+                try {
+                    // Process 1 Job
+                    processJob(job);
+                } finally {
+                    // Always decrease runningJobs after processing ends.
+                    // This also prevents the counter from remaining incorrect
+                    // if processJob() is interrupted or throws an exception.
+                    statistics.jobFinished();
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

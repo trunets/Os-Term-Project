@@ -1,3 +1,4 @@
+
 /**
  * Thread ที่รายงานสถานะระบบเป็นระยะ
  *
@@ -27,21 +28,59 @@
  */
 public class Monitor extends Thread {
 
-    // TODO: เก็บสิ่งที่ต้องอ่านสถานะ และ logger
-    //
+    // เก็บสิ่งที่ต้องอ่านสถานะ และ logger
+    private final ReadyQueue readyQueue;
+    private final ResourceManager resources;
+    private final Statistics statistics;
+    private final ProjectLogger logger;
+
     // หมายเหตุ: constructor ด้านล่างยังไม่มีทางเข้าถึงตัวนับ running
     // เพราะยังไม่มีการตัดสินว่าตัวนับนั้นควรอยู่ที่ไหน ให้เพิ่ม parameter
     // เข้าไปเองเมื่อออกแบบเสร็จ
-
-    public Monitor(ReadyQueue readyQueue, ResourceManager resources,
-                   Statistics statistics, ProjectLogger logger) {
+    public Monitor(
+            ReadyQueue readyQueue,
+            ResourceManager resources,
+            Statistics statistics,
+            ProjectLogger logger) {
         super("monitor");
-        // TODO
+        
+        this.readyQueue = readyQueue;
+        this.resources = resources;
+        this.statistics = statistics;
+        this.logger = logger;
+
         throw new UnsupportedOperationException("TODO: Monitor constructor");
     }
 
     @Override
     public void run() {
-        // TODO: วนรายงานสถานะทุก ~1000 ms จนกว่าจะได้รับสัญญาณให้หยุด
+        // วนรายงานสถานะทุก ~1000 ms จนกว่าจะได้รับสัญญาณให้หยุด
+        try {
+            while (!isInterrupted()) {
+
+                // Read each value through its API.
+                int ready = readyQueue.size();
+                int running = statistics.runningCount();
+                int completed = statistics.completedCount();
+
+                // ResourceManager.status() calculates the resource usage
+                // from Semaphore.availablePermits(), so it is safe to read.
+                String resourceStatus = resources.status();
+
+                // Print the monitor snapshot using the required logger format.
+                logger.monitor(
+                        ready,
+                        running,
+                        completed,
+                        resourceStatus
+                );
+
+                // Interrupting this sleep is also how Main stops the Monitor.
+                Thread.sleep(1000);
+            }
+        } catch (InterruptedException e) {
+            // Restore the interrupt flag and terminate.
+            Thread.currentThread().interrupt();
+        }
     }
 }

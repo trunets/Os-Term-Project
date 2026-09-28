@@ -28,17 +28,37 @@ import java.util.List;
  */
 public class Statistics {
 
-    // TODO: เก็บข้อมูลของงานที่เสร็จแล้ว หรือเก็บผลรวมไว้คำนวณทีหลัง
+    // เก็บข้อมูลของงานที่เสร็จแล้ว หรือเก็บผลรวมไว้คำนวณทีหลัง
     private final List<Job> completedJobs = new ArrayList<>();
     private int completedCount = 0;
 
-    /** บันทึกว่างานชิ้นหนึ่งเสร็จแล้ว เรียกโดย Worker หลายตัวพร้อมกันได้ */
+    // Number of jobs currently being processed by Workers.
+    private int runningJobs = 0;
+
+    // Called when a Worker takes a real Job from ReadyQueue.
+    public synchronized void jobStarted() {
+        runningJobs++;
+    }
+
+    // Called when a Worker finishes a Job.
+    public synchronized void jobFinished() {
+        if (runningJobs > 0) {
+            runningJobs--;
+        }
+    }
+
+    // Number of currently running Jobs used by Monitor.
+    public synchronized int runningCount() {
+        return runningJobs;
+    }
+
+    // record 1 complete job safe for multiple workere (synchronized)
     public synchronized void recordCompletion(Job job) {
         completedJobs.add(job);
         completedCount++;
     }
 
-    /** จำนวนงานที่เสร็จแล้ว ใช้โดย Monitor และใช้ตรวจว่างานครบหรือยัง */
+    // Number of complete jobs used by Monitor and shutdown logic.
     public synchronized int completedCount() {
         return completedCount;
     }
