@@ -81,12 +81,47 @@ public class Job {
     // Turnaround = Waiting + workMs + Resource Wait + resourceMs
     // =====================================================================
 
+    // Getter
+    // Waiting Time = startTime - actual ArrivalMs
+    public long getWaitingTime() {
+        if (actualArrivalMs < 0 || startTime < 0) {
+            return -1;
+        }
+
+        return startTime - actualArrivalMs;
+    }
+
+    // Turnaround Time = completionTime - actualArrivalMs
+    public long getTurnaroundTime() {
+        if (actualArrivalMs < 0 || completionTime < 0) {
+            return -1;
+        }
+
+        return completionTime - actualArrivalMs;
+    }
+
     public int getSequenceNumber() {
         return sequence;
     }
 
     public int getPriority() {
         return priority;
+    }
+
+    // ตรวจสมการของ Job
+    public boolean validateMetrics() {
+        if (actualArrivalMs < 0 || startTime < 0 || completionTime < 0) {
+            return false;
+        }
+
+        long waiting = getWaitingTime();
+        long turnaround = getTurnaroundTime();
+
+        return turnaround
+                == waiting
+                + workMs
+                + resourceWaitTime
+                + resourceMs;
     }
 
     @Override
