@@ -17,7 +17,6 @@ import java.util.concurrent.BlockingQueue;
  * ข้อควรคิด:
  *   - รายการงานที่ได้จาก WorkloadLoader เรียงตามลำดับในไฟล์ ไม่ได้เรียงตามเวลา
  *   - เมื่อปล่อยงานครบทุกชิ้นแล้ว ต้องมีวิธีบอกระบบว่า "จะไม่มีงานเข้ามาอีก"
- *     ดู TODO เรื่องการปิดระบบใน Main
  * 
  * ===============================================================
  * ยังขาดการเก็บ jobs, ช่องทางส่ง Job ไป Scheduler และ logger  
@@ -29,7 +28,6 @@ import java.util.concurrent.BlockingQueue;
  */
 public class JobGenerator extends Thread {
 
-    // TODO: เก็บรายการงาน, ช่องทางส่งงานไปยัง Scheduler และ logger
     //
     // หมายเหตุ: constructor ด้านล่างยังไม่มี parameter สำหรับ "ช่องทางส่งงาน"
     // เพราะเป็นสิ่งที่กลุ่มต้องออกแบบเอง (หัวข้อ 2 ห้ามให้ JobGenerator

@@ -9,7 +9,6 @@ import java.util.concurrent.LinkedBlockingQueue;
  * ===== ไฟล์นี้เป็นโครงเปล่า นักศึกษาต้องเขียนเอง =====
  *
  * ส่วนที่เขียนไว้ให้แล้วคือการรับค่า การโหลด workload และการแสดง error
- * ซึ่งไม่ใช่สิ่งที่โครงงานนี้วัด ส่วนที่เหลือเป็น TODO ทั้งหมด
  *
  * วิธีรัน: java Main jobs_standard.csv priority 3 1 2
  * ==================================================================
@@ -80,7 +79,7 @@ public class Main {
         for (int i = 0; i < config.workers; i++) {
             workers[i]
                     = new Worker(
-                            "Worker: " + String.valueOf(i + 1),
+                            "Worker-" + (i + 1),
                             readyQueue,
                             resourceManager,
                             statistics,

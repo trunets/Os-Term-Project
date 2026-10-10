@@ -1,128 +1,214 @@
-
 /**
- * Thread ที่ดึงงานจาก Ready Queue ไปทำจนเสร็จ
+ * Thread that takes jobs from the Ready Queue and processes them.
  *
- * ===== ไฟล์นี้เป็นโครงเปล่า นักศึกษาต้องเขียนเอง =====
+ * Required processing order:
  *
- * ลำดับการทำงานของ Job หนึ่งชิ้น บังคับตามหัวข้อ 6 ของโจทย์:
- * 1. รับงานจาก Ready Queue แล้วบันทึกเวลาเริ่ม
- * 2. จำลองงานหลักด้วย Thread.sleep(job.workMs)
- * 3. ถ้า job.resource != NONE ให้บันทึกเวลาเริ่มรอ แล้ว acquire
- * 4. จำลองการถือครองด้วย Thread.sleep(job.resourceMs)
- * 5. release แล้วบันทึกเวลาจบ
+ * 1. Take Job from Ready Queue and record startTime.
+ * 2. Sleep for job.workMs.
+ * 3. If a resource is required, wait and acquire it.
+ * 4. Record Resource Wait Time after acquire succeeds.
+ * 5. Sleep for job.resourceMs while holding the resource.
+ * 6. Release the resource safely.
+ * 7. Record completionTime and update Statistics.
  *
- * ห้ามสลับขั้นที่ 2 กับ 3 เพราะจะทำให้ผลของทุกกลุ่มเทียบกันไม่ได้
- *
- * จุดที่มักพลาด:
- * - ถ้า exception หรือ interrupt เกิดขึ้นหลัง acquire แต่ก่อน release
- * permit จะค้างถาวรและระบบจะแขวน ต้องออกแบบให้คืนได้เสมอ
- * - Worker ต้องหยุดเองได้เมื่อไม่มีงานเหลือแล้ว ไม่ใช่วนรอตลอดไป
- * ================================================================
- * ยังขาดการรับ Job จาก ReadyQueue
- * ยังขาด startTime
- * ยังขาด Thread.sleep(workMs)
- * ยังขาดการวัดและบันทึก Resource Wait Time
- * ยังขาด acquire/release
- * ยังขาด try/finally หรือกลไกเทียบเท่าเพื่อไม่ให้ permit หาย
- * ยังขาด completionTime
- * ยังขาดการ update Statistics แบบ thread-safe
- * ยังขาดการจัดการ InterruptedException
- * ยังขาดการหยุด Worker อย่างถูกต้องเมื่อไม่มีงานเหลือ
+ * The Worker must not use busy waiting.
  */
 public class Worker extends Thread {
 
-    // TODO: เก็บ ReadyQueue, ResourceManager, Statistics และ logger
+    // Shared objects used by all workers.
     private final ReadyQueue readyQueue;
     private final ResourceManager resources;
     private final Statistics statistics;
     private final ProjectLogger logger;
 
-    public Worker(String name, ReadyQueue readyQueue, ResourceManager resources,
-            Statistics statistics, ProjectLogger logger) {
+    /**
+     * Create a Worker.
+     *
+     * The name should be:
+     * Worker_1
+     * Worker_2
+     * Worker_3
+     * ...
+     */
+    public Worker(
+            String name,
+            ReadyQueue readyQueue,
+            ResourceManager resources,
+            Statistics statistics,
+            ProjectLogger logger
+    ) {
         super(name);
+
         this.readyQueue = readyQueue;
         this.resources = resources;
         this.statistics = statistics;
         this.logger = logger;
     }
 
+    /**
+     * Worker main loop.
+     *
+     * The Worker blocks in readyQueue.take() when there is
+     * no job, so it does not busy-wait.
+     */
     @Override
     public void run() {
-        // วนรับงานและเรียก processJob จนกว่าจะได้รับสัญญาณให้หยุด
+
         try {
+
             while (true) {
 
-                // Wait for next Job from Ready Queue
+                /*
+                 * BlockingQueue.take() waits efficiently until
+                 * a job becomes available.
+                 */
                 Job job = readyQueue.take();
 
-                // Poison pill tell this worker to shutdown
+                /*
+                 * Poison pill means that the system has finished
+                 * sending jobs and this Worker can shut down.
+                 */
                 if (job == JobGenerator.POISON_PILL) {
                     break;
                 }
 
-                // This job is now being processed by this worker.
+                /*
+                 * This job is now being processed by this Worker.
+                 */
                 statistics.jobStarted();
 
                 try {
-                    // Process 1 Job
+
                     processJob(job);
+
                 } finally {
-                    // Always decrease runningJobs after processing ends.
-                    // This also prevents the counter from remaining incorrect
-                    // if processJob() is interrupted or throws an exception.
+
+                    /*
+                     * Always update runningJobs even if processing
+                     * is interrupted or another exception occurs.
+                     */
                     statistics.jobFinished();
                 }
             }
+
         } catch (InterruptedException e) {
+
+            /*
+             * Restore the interrupt flag when the Worker is
+             * interrupted while waiting for a job.
+             */
             Thread.currentThread().interrupt();
         }
     }
 
     /**
-     * ทำงานหนึ่งชิ้นให้จบตามลำดับ 5 ขั้นด้านบน
+     * Process one Job according to the exact required order.
      */
-    private void processJob(Job job) throws InterruptedException {
-        // 1. รับงานจาก Ready Queue แล้วบันทึกเวลาเริ่ม
+    private void processJob(Job job)
+            throws InterruptedException {
+
+        // ========================================================
+        // 1. Worker receives Job and records startTime
+        // ========================================================
+
         job.startTime = logger.now();
+
         logger.jobStarted(job);
 
-        // 2. จำลองงานหลักด้วย Thread.sleep(job.workMs)
+        // ========================================================
+        // 2. Simulate main work
+        // ========================================================
+
         Thread.sleep(job.workMs);
+
         logger.workFinished(job);
 
-        // 3. ถ้า job.resource != NONE ให้บันทึกเวลาเริ่มรอ แล้ว acquire
+        // ========================================================
+        // 3-6. Shared resource processing
+        // ========================================================
+
         if (job.resource != ResourceType.NONE) {
+
+            /*
+             * Record the time immediately before attempting
+             * to acquire the resource.
+             */
             logger.resourceWaitStarted(job);
+
             long waitStart = logger.now();
 
             boolean acquired = false;
+
             try {
-                // ให้บันทึกเวลาเริ่มรอ แล้ว acquire
+
+                /*
+                 * ResourceManager handles the shared Semaphore.
+                 *
+                 * This call blocks if no permit is available.
+                 */
                 resources.acquire(job.resource);
+
                 acquired = true;
 
-                job.resourceWaitTime = logger.now() - waitStart;
-                logger.resourceAcquired(job, job.resourceWaitTime);
+                // ====================================================
+                // 4. Resource acquired -> calculate wait time
+                // ====================================================
 
-                // 4. จำลองการถือครองด้วย Thread.sleep(job.resourceMs)
+                job.resourceWaitTime =
+                        logger.now() - waitStart;
+
+                logger.resourceAcquired(
+                        job,
+                        job.resourceWaitTime
+                );
+
+                // ====================================================
+                // 5. Hold the resource
+                // ====================================================
+
                 Thread.sleep(job.resourceMs);
+
             } finally {
-                // 5. release แล้วบันทึกเวลาจบ
+
+                // ====================================================
+                // 6. Always release the resource
+                // ====================================================
+
+                /*
+                 * Only release if this Worker actually acquired
+                 * the permit.
+                 *
+                 * This prevents releasing a permit that this
+                 * Worker does not own.
+                 */
                 if (acquired) {
+
                     resources.release(job.resource);
+
                     logger.resourceReleased(job);
                 }
             }
+
         } else {
-            // job.resource without resource wait time = 0
+
+            /*
+             * A Job without a resource has zero Resource Wait Time.
+             */
             job.resourceWaitTime = 0;
         }
 
-        //record completion time
+        // ========================================================
+        // 7. Job completion
+        // ========================================================
+
         job.completionTime = logger.now();
+
         logger.jobCompleted(job);
 
-        // update statistics
+        /*
+         * Statistics must be thread-safe because multiple
+         * Worker threads can update it concurrently.
+         */
         statistics.recordCompletion(job);
     }
 }

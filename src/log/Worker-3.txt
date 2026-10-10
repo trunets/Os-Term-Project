@@ -1,0 +1,15 @@
+[     200 ms] [Worker-3  ] JOB_STARTED        job=J03 priority=5
+[    2702 ms] [Worker-3  ] WORK_FINISHED      job=J03
+[    2703 ms] [Worker-3  ] JOB_COMPLETED      job=J03
+[    2703 ms] [Worker-3  ] JOB_STARTED        job=J08 priority=1
+[    3306 ms] [Worker-3  ] WORK_FINISHED      job=J08
+[    3307 ms] [Worker-3  ] RESOURCE_WAIT      job=J08 resource=PRINTER
+[    4628 ms] [Worker-3  ] RESOURCE_ACQUIRED  job=J08 resource=PRINTER waited=1319ms
+[    5532 ms] [Worker-3  ] RESOURCE_RELEASED  job=J08 resource=PRINTER
+[    5533 ms] [Worker-3  ] JOB_COMPLETED      job=J08
+[    5533 ms] [Worker-3  ] JOB_STARTED        job=J05 priority=5
+[    8034 ms] [Worker-3  ] WORK_FINISHED      job=J05
+[    8035 ms] [Worker-3  ] RESOURCE_WAIT      job=J05 resource=PRINTER
+[    8037 ms] [Worker-3  ] RESOURCE_ACQUIRED  job=J05 resource=PRINTER waited=0ms
+[    9249 ms] [Worker-3  ] RESOURCE_RELEASED  job=J05 resource=PRINTER
+[    9249 ms] [Worker-3  ] JOB_COMPLETED      job=J05

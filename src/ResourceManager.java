@@ -29,7 +29,7 @@ import java.util.concurrent.Semaphore;
  */
 public class ResourceManager {
 
-    // TODO: เก็บ Semaphore ของ PRINTER และ DATABASE
+    // : เก็บ Semaphore ของ PRINTER และ DATABASE
     private final Semaphore printerSemaphore;
     private final Semaphore databaseSemaphore;
     private final int printerPermits;

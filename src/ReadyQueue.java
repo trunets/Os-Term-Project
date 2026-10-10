@@ -28,7 +28,7 @@ import java.util.Queue;
  */
 public class ReadyQueue {
 
-    // TODO: เก็บนโยบาย (Config.Policy) และโครงสร้างข้อมูลที่ใช้เก็บงาน
+    // : เก็บนโยบาย (Config.Policy) และโครงสร้างข้อมูลที่ใช้เก็บงาน
     Config.Policy policy;
 
     // Queue ของ fcfs
@@ -38,7 +38,7 @@ public class ReadyQueue {
     private PriorityQueue<Job> priorityQueue;
 
     public ReadyQueue(Config.Policy policy) {
-        // TODO
+        // 
         this.policy = policy;
         if (policy == Config.Policy.FCFS) {
             // สร้าง fcfsQueue
@@ -70,7 +70,7 @@ public class ReadyQueue {
      * ใส่งานเข้าคิว เรียกโดย Scheduler Thread
      */
     public synchronized void add(Job job) {
-        // TODO
+        // 
         if (policy == Config.Policy.FCFS) {
             fcfsQueue.add(job);
         } else if (policy == Config.Policy.PRIORITY) {
@@ -90,7 +90,7 @@ public class ReadyQueue {
      * อย่างไรเมื่อไม่มีงานเหลือแล้วและควรหยุดทำงาน
      */
     public synchronized Job take() throws InterruptedException {
-        // TODO
+        // 
 
         // wait until at least 1 job avaliable
         while (size() == 0) {
@@ -110,7 +110,7 @@ public class ReadyQueue {
      * จำนวนงานที่รออยู่ตอนนี้ ใช้โดย Monitor — ต้องอ่านได้อย่างปลอดภัย
      */
     public synchronized int size() {
-        // TODO
+        // 
         if (policy == Config.Policy.FCFS) {
             return fcfsQueue.size();
         } else if (policy == Config.Policy.PRIORITY) {
