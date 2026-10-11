@@ -1,53 +1,63 @@
+
 public class Job {
+
     /**
- * ข้อมูลของงานหนึ่งชิ้น
- *
- * ฟิลด์ทั้งหมดในไฟล์นี้มาจากไฟล์ workload CSV โดยตรง และถูกกำหนดครั้งเดียว
- * ตอนโหลด จึงประกาศเป็น final และปลอดภัยเมื่อหลาย Thread อ่านพร้อมกัน
- *
- * ไฟล์นี้เป็นโค้ดตั้งต้นที่อาจารย์แจก แต่ต่างจากไฟล์อื่นตรงที่
- * นักศึกษา "ต้องแก้" โดยเพิ่มฟิลด์ของตัวเองในส่วน TODO ด้านล่าง
- * ===================================================================
- * ส่วนข้อมูลจาก CSV มีแล้ว
- * ที่ยังขาดคือฟิลด์สำหรับ metrics ของแต่ละ Job:
- * start time
- * completion time
- * resource wait start
- * resource wait time
- * ต้องออกแบบเรื่อง thread-safety ของฟิลด์เหล่านี้ให้เหมาะสม
- * ต้องสามารถตรวจสมการ Turnaround = Waiting + workMs + Resource Wait +
- * resourceMs ได้
-    */
+     * ข้อมูลของงานหนึ่งชิ้น
+     *
+     * ฟิลด์ทั้งหมดในไฟล์นี้มาจากไฟล์ workload CSV โดยตรง และถูกกำหนดครั้งเดียว
+     * ตอนโหลด จึงประกาศเป็น final และปลอดภัยเมื่อหลาย Thread อ่านพร้อมกัน
+     *
+     * ไฟล์นี้เป็นโค้ดตั้งต้นที่อาจารย์แจก แต่ต่างจากไฟล์อื่นตรงที่ นักศึกษา
+     * "ต้องแก้" โดยเพิ่มฟิลด์ของตัวเองในส่วน TODO ด้านล่าง
+     * ===================================================================
+     * ส่วนข้อมูลจาก CSV มีแล้ว ที่ยังขาดคือฟิลด์สำหรับ metrics ของแต่ละ Job:
+     * start time completion time resource wait start resource wait time
+     * ต้องออกแบบเรื่อง thread-safety ของฟิลด์เหล่านี้ให้เหมาะสม
+     * ต้องสามารถตรวจสมการ Turnaround = Waiting + workMs + Resource Wait +
+     * resourceMs ได้
+     */
 
     public volatile long actualArrivalMs = -1;
     public volatile long startTime = -1;
     public volatile long completionTime = -1;
     public volatile long resourceWaitTime = 0; // stays 0 for resource == NONE
 
-    /** รหัสงาน เช่น J01 — ไม่ซ้ำกันภายในหนึ่งไฟล์ workload */
+    /**
+     * รหัสงาน เช่น J01 — ไม่ซ้ำกันภายในหนึ่งไฟล์ workload
+     */
     public final String id;
 
-    /** เวลาที่งานควรเข้าสู่ระบบ นับจากวินาทีที่โปรแกรมเริ่ม (มิลลิวินาที) */
+    /**
+     * เวลาที่งานควรเข้าสู่ระบบ นับจากวินาทีที่โปรแกรมเริ่ม (มิลลิวินาที)
+     */
     public final long arrivalMs;
 
-    /** ระดับความสำคัญ โดย 1 คือสูงสุด ตัวเลขยิ่งมากยิ่งสำคัญน้อย */
+    /**
+     * ระดับความสำคัญ โดย 1 คือสูงสุด ตัวเลขยิ่งมากยิ่งสำคัญน้อย
+     */
     public final int priority;
 
-    /** ระยะเวลาของงานหลัก ก่อนขอใช้ทรัพยากรร่วม (มิลลิวินาที) */
+    /**
+     * ระยะเวลาของงานหลัก ก่อนขอใช้ทรัพยากรร่วม (มิลลิวินาที)
+     */
     public final long workMs;
 
-    /** ทรัพยากรร่วมที่ต้องใช้ หรือ NONE ถ้าไม่ต้องใช้ */
+    /**
+     * ทรัพยากรร่วมที่ต้องใช้ หรือ NONE ถ้าไม่ต้องใช้
+     */
     public final ResourceType resource;
 
     /**
-     * ระยะเวลาที่ถือครองทรัพยากร (มิลลิวินาที) เป็น 0 เสมอเมื่อ resource เป็น NONE
+     * ระยะเวลาที่ถือครองทรัพยากร (มิลลิวินาที) เป็น 0 เสมอเมื่อ resource เป็น
+     * NONE
      */
     public final long resourceMs;
 
     /**
      * ลำดับที่งานนี้ปรากฏในไฟล์ workload เริ่มจาก 0
-     * เตรียมไว้ให้เผื่อกลุ่มต้องการใช้ประกอบการตัดสินลำดับเมื่อ priority เท่ากัน
-     * จะใช้หรือไม่ใช้ก็ได้ กติกาตัดสินลำดับเป็นสิ่งที่กลุ่มต้องออกแบบเอง
+     * เตรียมไว้ให้เผื่อกลุ่มต้องการใช้ประกอบการตัดสินลำดับเมื่อ priority
+     * เท่ากัน จะใช้หรือไม่ใช้ก็ได้
+     * กติกาตัดสินลำดับเป็นสิ่งที่กลุ่มต้องออกแบบเอง
      */
     public final int sequence;
 
@@ -78,7 +88,6 @@ public class Job {
     // 3. ผลที่ได้ต้องสอดคล้องกับสมการตรวจสอบในหัวข้อ 8:
     // Turnaround = Waiting + workMs + Resource Wait + resourceMs
     // =====================================================================
-
     // Getter
     // Waiting Time = startTime - actual ArrivalMs
     public long getWaitingTime() {
@@ -115,11 +124,17 @@ public class Job {
         long waiting = getWaitingTime();
         long turnaround = getTurnaroundTime();
 
-        return turnaround
-                == waiting
+        long expected
+                = waiting
                 + workMs
                 + resourceWaitTime
                 + resourceMs;
+
+        // Small timing differences can occur because Thread.sleep()
+        // depends on OS thread scheduling.
+        long toleranceMs = 20;
+
+        return Math.abs(turnaround - expected) <= toleranceMs;
     }
 
     @Override

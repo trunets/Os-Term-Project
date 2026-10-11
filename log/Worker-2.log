@@ -1,0 +1,18 @@
+[     101 ms] [Worker-2  ] JOB_STARTED        job=J02 priority=5
+[    2505 ms] [Worker-2  ] WORK_FINISHED      job=J02
+[    2508 ms] [Worker-2  ] RESOURCE_WAIT      job=J02 resource=PRINTER
+[    2512 ms] [Worker-2  ] RESOURCE_ACQUIRED  job=J02 resource=PRINTER waited=0ms
+[    3723 ms] [Worker-2  ] RESOURCE_RELEASED  job=J02 resource=PRINTER
+[    3724 ms] [Worker-2  ] JOB_COMPLETED      job=J02
+[    3724 ms] [Worker-2  ] JOB_STARTED        job=J06 priority=4
+[    6134 ms] [Worker-2  ] WORK_FINISHED      job=J06
+[    6135 ms] [Worker-2  ] RESOURCE_WAIT      job=J06 resource=DATABASE
+[    6136 ms] [Worker-2  ] RESOURCE_ACQUIRED  job=J06 resource=DATABASE waited=0ms
+[    7142 ms] [Worker-2  ] RESOURCE_RELEASED  job=J06 resource=DATABASE
+[    7143 ms] [Worker-2  ] JOB_COMPLETED      job=J06
+[    7144 ms] [Worker-2  ] JOB_STARTED        job=J09 priority=1
+[    7850 ms] [Worker-2  ] WORK_FINISHED      job=J09
+[    7850 ms] [Worker-2  ] RESOURCE_WAIT      job=J09 resource=DATABASE
+[    7851 ms] [Worker-2  ] RESOURCE_ACQUIRED  job=J09 resource=DATABASE waited=0ms
+[    8759 ms] [Worker-2  ] RESOURCE_RELEASED  job=J09 resource=DATABASE
+[    8760 ms] [Worker-2  ] JOB_COMPLETED      job=J09

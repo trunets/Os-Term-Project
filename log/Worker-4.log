@@ -1,0 +1,12 @@
+[     301 ms] [Worker-4  ] JOB_STARTED        job=J04 priority=5
+[    2702 ms] [Worker-4  ] WORK_FINISHED      job=J04
+[    2703 ms] [Worker-4  ] RESOURCE_WAIT      job=J04 resource=DATABASE
+[    2704 ms] [Worker-4  ] RESOURCE_ACQUIRED  job=J04 resource=DATABASE waited=0ms
+[    3705 ms] [Worker-4  ] RESOURCE_RELEASED  job=J04 resource=DATABASE
+[    3706 ms] [Worker-4  ] JOB_COMPLETED      job=J04
+[    3707 ms] [Worker-4  ] JOB_STARTED        job=J09 priority=1
+[    4417 ms] [Worker-4  ] WORK_FINISHED      job=J09
+[    4418 ms] [Worker-4  ] RESOURCE_WAIT      job=J09 resource=DATABASE
+[    4418 ms] [Worker-4  ] RESOURCE_ACQUIRED  job=J09 resource=DATABASE waited=0ms
+[    5332 ms] [Worker-4  ] RESOURCE_RELEASED  job=J09 resource=DATABASE
+[    5334 ms] [Worker-4  ] JOB_COMPLETED      job=J09
