@@ -204,19 +204,21 @@ public class Main {
 
         // ---------- 7. สรุปผล ----------
         // หา makespan = เวลาที่งานชิ้นสุดท้ายเสร็จ (ใช้ logger.now())
-        long makespan = logger.now();
+        long makespan = 0;
 
-        int completed = statistics.completedCount();
-
+        // Find the completion time of the last completed job.
         for (Job job : jobs) {
             if (job.completionTime > makespan) {
                 makespan = job.completionTime;
-                // เรียก statistics.printSummary(jobs, makespanMs)
-                statistics.printSummary(jobs, makespan);
             }
         }
-        
-        // logger.systemStop(completed, jobs.size())
+
+        int completed = statistics.completedCount();
+
+        // Print the final statistics using the actual simulation makespan.
+        statistics.printSummary(jobs, makespan);
+
+        // Log the final system status.
         logger.systemStop(completed, jobs.size());
     }
 }
