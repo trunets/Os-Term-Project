@@ -180,6 +180,9 @@ public class Main {
         //   3. permit ค้างเพราะถูก interrupt ระหว่างถือ resource
         // ---------- 6. สั่งหยุดทุก Thread ----------
         // หยุด Worker ทุกตัว, Scheduler, Monitor และ JobGenerator
+
+        // จริงๆแล้วไม่จำเป็นต้อง interrupt Scheduler และ JobGenerator เพราะทั้งสองตัวจะหยุดตัวเองเมื่อทำงานเสร็จ
+        // หยุดตอนบรรทัด 153 แต่ไม่ตรงตาม requirement (หยุด Worker ทุกตัว, Scheduler, Monitor และ JobGenerator)
         jobGenerator.interrupt();
         scheduler.interrupt();
         monitor.interrupt();
