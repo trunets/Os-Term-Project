@@ -6,6 +6,12 @@ javac src/*.java
 ```
 
 ## Run
+ลบ .log เก่า
+```bash
+Remove-Item log\* -Force
+```
+
+เริ่มทดสอบไฟล์
 ```bash
 java -cp src Main workloads\jobs_standard.csv fcfs 3 1 2
 ```

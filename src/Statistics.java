@@ -101,10 +101,17 @@ public class Statistics {
 
             // Verification equation from section 8:
             // Turnaround = Waiting + workMs + Resource Wait + resourceMs
-            long expected = waiting + job.workMs + job.resourceWaitTime + job.resourceMs;
-            if (expected != turnaround) {
-                System.out.printf("WARNING: %s fails verification: turnaround=%d expected=%d%n",
-                        job.id, turnaround, expected);
+            // Use Job's validation method to keep verification consistent.
+            if (!job.validateMetrics()) {
+                long expected = waiting
+                        + job.workMs
+                        + job.resourceWaitTime
+                        + job.resourceMs;
+
+                System.out.printf(
+                    "WARNING: %s fails verification: turnaround=%d expected=%d%n",
+                    job.id, turnaround, expected
+                );
             }
         }
 

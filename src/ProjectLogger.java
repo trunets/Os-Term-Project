@@ -11,28 +11,17 @@ public final class ProjectLogger {
     private final long startNanos;
     private final PrintStream out;
 
-    /*
-     * Protect all log writes because multiple threads
-     * can write to the logger concurrently.
-     */
+    // Protect all log writes because multiple threads can write concurrently.
     private final Object writeLock = new Object();
 
-    /*
-     * Remember which Worker log files have already
-     * been initialized during this program run.
-     *
-     * First write:
-     *     overwrite old file
-     *
-     * Later writes:
-     *     append to the same file
-     */
-    private final Set<String> initializedWorkers =
-            new HashSet<>();
+    // Remember which Worker log files have already been initialized.
+    private final Set<String> initializedWorkers = new HashSet<>();
+
+    // All logs use one directory only.
+    private static final String LOG_DIRECTORY = "log";
 
     /**
      * Create the logger.
-     *
      * The creation time is treated as simulationStart.
      */
     public ProjectLogger() {
@@ -50,40 +39,32 @@ public final class ProjectLogger {
     /**
      * Create the main log file.
      *
-     * The old log.log is cleared when the program starts.
+     * Main log:
+     *     log/log.log
+     *
+     * Each execution starts with a clean log.log.
      */
     private static PrintStream createMainLogStream() {
-
         try {
+            // Create one shared log directory.
+            File logDirectory = new File(LOG_DIRECTORY);
 
-                // Create the log directory.
-                // When running from the project root, use "src/log".
-                File logDirectory = new File("src/log");
+            if (!logDirectory.exists() && !logDirectory.mkdirs()) {
+                throw new RuntimeException(
+                        "Cannot create " + LOG_DIRECTORY
+                );
+            }
 
-                // When running from the src directory, use "log".
-                if (!logDirectory.exists()) {
-                        logDirectory = new File("log");
-                }
+            // Main log file.
+            File logFile = new File(logDirectory, "log.log");
 
-                // Create the directory if it does not exist.
-                if (!logDirectory.exists()) {
-                        logDirectory.mkdirs();
-                }
-
-                // Main log file.
-                File logFile = new File(logDirectory, "log.log");
-
-                /*
-                * false = overwrite the old log.
-                *
-                * Each execution starts with a clean log.log.
-                */
-                FileOutputStream fileOut =
-            new FileOutputStream(logFile, false);
+            // false = overwrite the old log.
+            // Each execution starts with a clean log.log.
+            FileOutputStream fileOut =
+                    new FileOutputStream(logFile, false);
 
             /*
              * Write to both:
-             *
              * 1. Console
              * 2. log/log.log
              */
@@ -105,17 +86,8 @@ public final class ProjectLogger {
                                 int len
                         ) throws java.io.IOException {
 
-                            System.out.write(
-                                    b,
-                                    off,
-                                    len
-                            );
-
-                            fileOut.write(
-                                    b,
-                                    off,
-                                    len
-                            );
+                            System.out.write(b, off, len);
+                            fileOut.write(b, off, len);
                         }
 
                         @Override
@@ -140,7 +112,6 @@ public final class ProjectLogger {
             );
 
         } catch (FileNotFoundException e) {
-
             throw new RuntimeException(
                     "Cannot create log/log.log",
                     e
@@ -149,14 +120,11 @@ public final class ProjectLogger {
     }
 
     /**
-     * Return elapsed time in milliseconds
-     * since the logger was created.
+     * Return elapsed time in milliseconds since the logger was created.
      */
     public long now() {
-
         return (
-                System.nanoTime()
-                        - startNanos
+                System.nanoTime() - startNanos
         ) / 1_000_000L;
     }
 
@@ -165,7 +133,6 @@ public final class ProjectLogger {
     // ============================================================
 
     public void systemStart(Config config) {
-
         write(
                 "SYSTEM_START",
                 config.describe()
@@ -173,7 +140,6 @@ public final class ProjectLogger {
     }
 
     public void systemEvent(String detail) {
-
         write(
                 "SYSTEM",
                 detail
@@ -184,7 +150,6 @@ public final class ProjectLogger {
             int completedJobs,
             int totalJobs
     ) {
-
         write(
                 "SYSTEM_STOP",
                 "completed="
@@ -199,7 +164,6 @@ public final class ProjectLogger {
     // ============================================================
 
     public void jobArrived(Job job) {
-
         write(
                 "JOB_ARRIVED",
                 detailOf(job)
@@ -207,7 +171,6 @@ public final class ProjectLogger {
     }
 
     public void jobStarted(Job job) {
-
         write(
                 "JOB_STARTED",
                 "job="
@@ -218,7 +181,6 @@ public final class ProjectLogger {
     }
 
     public void workFinished(Job job) {
-
         write(
                 "WORK_FINISHED",
                 "job="
@@ -227,7 +189,6 @@ public final class ProjectLogger {
     }
 
     public void resourceWaitStarted(Job job) {
-
         write(
                 "RESOURCE_WAIT",
                 "job="
@@ -241,7 +202,6 @@ public final class ProjectLogger {
             Job job,
             long waitedMs
     ) {
-
         write(
                 "RESOURCE_ACQUIRED",
                 "job="
@@ -255,7 +215,6 @@ public final class ProjectLogger {
     }
 
     public void resourceReleased(Job job) {
-
         write(
                 "RESOURCE_RELEASED",
                 "job="
@@ -266,7 +225,6 @@ public final class ProjectLogger {
     }
 
     public void jobCompleted(Job job) {
-
         write(
                 "JOB_COMPLETED",
                 "job="
@@ -284,7 +242,6 @@ public final class ProjectLogger {
             int completed,
             String resourceStatus
     ) {
-
         write(
                 "MONITOR",
                 "ready="
@@ -306,9 +263,7 @@ public final class ProjectLogger {
      * Create the standard Job detail.
      */
     private static String detailOf(Job job) {
-
-        StringBuilder sb =
-                new StringBuilder();
+        StringBuilder sb = new StringBuilder();
 
         sb.append("job=")
                 .append(job.id)
@@ -319,7 +274,6 @@ public final class ProjectLogger {
                 .append("ms");
 
         if (job.resource != ResourceType.NONE) {
-
             sb.append(" resource=")
                     .append(job.resource)
                     .append("(")
@@ -334,14 +288,11 @@ public final class ProjectLogger {
      * Write one event.
      *
      * Every event goes to:
-     *
      * 1. Console
      * 2. log/log.log
      *
-     * If the current thread is Worker_n,
-     * the same line is also written to:
-     *
-     * log/Worker_n.log
+     * Worker events are also copied to:
+     * 3. log/Worker-N.log
      */
     private void write(
             String event,
@@ -361,11 +312,7 @@ public final class ProjectLogger {
                         : detail
         );
 
-        /*
-         * Synchronize the entire logging operation
-         * so multiple Worker threads cannot mix
-         * their output.
-         */
+        // Synchronize the entire logging operation.
         synchronized (writeLock) {
 
             // Write to console + main log.
@@ -381,9 +328,7 @@ public final class ProjectLogger {
     }
 
     /**
-     * Write Worker events to a separate .log file.
-     *
-     * Example:
+     * Write Worker events to a separate log file.
      *
      * Worker-1 -> log/Worker-1.log
      * Worker-2 -> log/Worker-2.log
@@ -393,10 +338,8 @@ public final class ProjectLogger {
             String line
     ) {
 
-        /*
-         * Only Worker-1, Worker-2, Worker-3, ...
-         * get separate log files.
-         */
+        // Only Worker-1, Worker-2, Worker-3, ...
+        // get separate log files.
         if (!threadName.matches(
                 "Worker-[0-9]+"
         )) {
@@ -404,13 +347,11 @@ public final class ProjectLogger {
         }
 
         try {
-
             File logDirectory =
-                    new File("log");
+                    new File(LOG_DIRECTORY);
 
             if (!logDirectory.exists()
                     && !logDirectory.mkdirs()) {
-
                 return;
             }
 
@@ -448,19 +389,15 @@ public final class ProjectLogger {
                 workerOut.flush();
             }
 
-            /*
-             * Mark this Worker as initialized.
-             */
+            // Mark this Worker as initialized.
             initializedWorkers.add(
                     threadName
             );
 
         } catch (FileNotFoundException e) {
 
-            /*
-             * A problem with an individual Worker log
-             * should not stop the whole scheduler.
-             */
+            // A problem with one Worker log should
+            // not stop the whole scheduler.
             System.err.println(
                     "Cannot create "
                             + threadName
@@ -476,7 +413,6 @@ public final class ProjectLogger {
     private static String shorten(
             String name
     ) {
-
         return name.length() <= 10
                 ? name
                 : name.substring(0, 10);
