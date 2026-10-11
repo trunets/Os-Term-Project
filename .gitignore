@@ -1,2 +1,4 @@
 *.class
 *.log
+src/log/
+src/*.class
