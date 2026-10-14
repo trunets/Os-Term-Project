@@ -18,14 +18,6 @@ import java.util.concurrent.Semaphore;
  *   - ถ้า Thread ถูก interrupt หลัง acquire สำเร็จแต่ก่อน release
  *     โค้ดของกลุ่มยังคืน permit ได้หรือไม่
  * =============================================================
- * ยังขาด Semaphore ของ PRINTER
- * ยังขาด Semaphore ของ DATABASE
- * ยังขาดการสร้าง Semaphore ด้วย fair=true
- * ยังขาด acquire()
- * ยังขาด release()
- * ยังขาด status() สำหรับ Monitor
- * ยังขาดการออกแบบให้ Worker ทุกตัวใช้ ResourceManager ตัวเดียวกัน
- * ต้องรองรับ permit ที่กำหนดจาก command line
  */
 public class ResourceManager {
 

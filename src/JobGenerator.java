@@ -19,12 +19,6 @@ import java.util.concurrent.BlockingQueue;
  *   - เมื่อปล่อยงานครบทุกชิ้นแล้ว ต้องมีวิธีบอกระบบว่า "จะไม่มีงานเข้ามาอีก"
  * 
  * ===============================================================
- * ยังขาดการเก็บ jobs, ช่องทางส่ง Job ไป Scheduler และ logger  
- * ยังขาดการปล่อย Job ตาม arrivalMs
- * ยังขาดการบันทึก actual arrival time
- * ยังขาดการส่ง Job ผ่าน Scheduler โดยไม่ข้ามไป ReadyQueue
- * ยังขาดกลไกบอกว่า Generator ส่ง Job ครบแล้ว
- * ต้องรองรับกรณี workload ไม่ได้เรียงตาม arrivalMs
  */
 public class JobGenerator extends Thread {
 
