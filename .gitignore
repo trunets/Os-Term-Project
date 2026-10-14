@@ -1,4 +1,8 @@
+# Ignore all Java compiled class files
 *.class
+
+# Ignore log files and the log directory
 *.log
+
 src/log/
 src/*.class
